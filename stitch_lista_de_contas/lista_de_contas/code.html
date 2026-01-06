@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lista de Contas - Finance App</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&amp;family=Noto+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#7311d4",
+              "background-light": "#f7f6f8",
+              "background-dark": "#191022",
+              "card-light": "#ffffff",
+              "card-dark": "#2c2435",
+              "text-main-light": "#141118",
+              "text-main-dark": "#ffffff",
+              "text-secondary-light": "#756189",
+              "text-secondary-dark": "#a090b0",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"],
+              "body": ["Noto Sans", "sans-serif"],
+            },
+            borderRadius: {
+              "DEFAULT": "0.5rem",
+              "lg": "1rem",
+              "xl": "1.5rem",
+              "2xl": "2rem",
+              "full": "9999px"
+            },
+            boxShadow: {
+                "soft": "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                "hover": "0 10px 25px -5px rgba(115, 17, 212, 0.15), 0 8px 10px -6px rgba(115, 17, 212, 0.1)",
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #cbd5e1;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-main-light dark:text-text-main-dark antialiased overflow-hidden">
+<div class="flex h-screen w-full overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="hidden md:flex w-72 flex-col border-r border-[#e0dbe6] dark:border-[#3a3045] bg-white dark:bg-[#1e1628] h-full flex-shrink-0 z-20 transition-colors">
+<div class="p-6 pb-2">
+<div class="flex items-center gap-3">
+<div class="bg-primary/10 rounded-xl p-2">
+<span class="material-symbols-outlined text-primary" style="font-size: 28px;">account_balance_wallet</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight">Finance<span class="text-primary">App</span></h1>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-2 p-4 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2c2435] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">dashboard</span>
+<span class="font-medium text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/10 text-primary dark:text-white dark:bg-primary/20 transition-all" href="#">
+<span class="material-symbols-outlined filled">account_balance</span>
+<span class="font-bold text-sm">Minhas Contas</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2c2435] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">receipt_long</span>
+<span class="font-medium text-sm">Transações</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2c2435] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">pie_chart</span>
+<span class="font-medium text-sm">Orçamento</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2c2435] hover:text-primary transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary transition-colors">credit_card</span>
+<span class="font-medium text-sm">Cartões</span>
+</a>
+</nav>
+<div class="p-4 border-t border-[#e0dbe6] dark:border-[#3a3045]">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2c2435] transition-all mb-2" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-medium text-sm">Configurações</span>
+</a>
+<div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-background-light dark:bg-[#2c2435] cursor-pointer hover:bg-gray-100 dark:hover:bg-[#382e42] transition-colors">
+<div class="size-10 rounded-full bg-cover bg-center border-2 border-white dark:border-[#3a3045]" data-alt="Portrait of a smiling user" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDyTxlO1xdMEU2T7ncXOO1UgVhVvaUgsjHjKxX7hKUljC-BIAmDUObI-l2WSGuCPAfez3lGwG0gUgh0x7i_lqLLkUwg15D3Sob78cwNA6SS5lqus6l5W5WkAUbs3Ha0JEz7SucWx6rdiGQVoLKoUKEYg4Q9K6Mg_xZK9JvLMjE_cjEXCS301imYsoThO5yw1bE4Rs9b69nvbwIi2r7tp_Px2W-syB_fvmlEmzdjYVopmtA-8JSJxJfPYF1BtGI23WJ6KLprUFaNOn0");'></div>
+<div class="flex flex-col overflow-hidden">
+<p class="text-sm font-bold truncate text-text-main-light dark:text-white">Ricardo Silva</p>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">ricardo@email.com</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark relative">
+<!-- Top Header -->
+<header class="h-20 flex items-center justify-between px-8 py-4 bg-white/80 dark:bg-[#191022]/90 backdrop-blur-md sticky top-0 z-10 border-b border-[#e0dbe6] dark:border-[#3a3045]">
+<div class="flex items-center gap-4 md:hidden">
+<button class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-[#2c2435] text-text-main-light dark:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="font-bold text-lg">Minhas Contas</span>
+</div>
+<div class="hidden md:flex flex-col">
+<h2 class="text-xl font-bold leading-tight">Minhas Contas</h2>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark font-medium">Gerencie seus ativos em um só lugar</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">search</span>
+<input class="h-10 pl-9 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus:ring-2 focus:ring-primary/50 w-64 placeholder-gray-400 dark:text-white transition-all" placeholder="Buscar conta..." type="text"/>
+</div>
+<button class="flex size-10 items-center justify-center rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors" title="Ocultar valores">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="flex size-10 items-center justify-center rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#2c2435]"></span>
+</button>
+</div>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto p-4 md:p-8 pb-20">
+<div class="max-w-7xl mx-auto space-y-8">
+<!-- Stats & Actions Row -->
+<div class="flex flex-col md:flex-row gap-6 justify-between items-start md:items-end">
+<div class="flex flex-col gap-1">
+<span class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Saldo Total Acumulado</span>
+<div class="flex items-baseline gap-3">
+<h2 class="text-4xl md:text-5xl font-black tracking-tight text-text-main-light dark:text-white">R$ 145.230,00</h2>
+<div class="flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+12% este mês</span>
+</div>
+</div>
+</div>
+<button class="flex items-center gap-2 px-6 h-12 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 w-full md:w-auto justify-center">
+<span class="material-symbols-outlined">add</span>
+<span>Adicionar Nova Conta</span>
+</button>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+<button class="flex h-9 px-4 items-center justify-center rounded-full bg-text-main-light dark:bg-white text-white dark:text-background-dark text-sm font-bold shadow-md transition-transform hover:scale-105 whitespace-nowrap">
+                            Todas
+                        </button>
+<button class="flex h-9 px-4 items-center justify-center rounded-full bg-white dark:bg-[#2c2435] border border-gray-200 dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors hover:border-primary/30 whitespace-nowrap">
+                            Conta Corrente
+                        </button>
+<button class="flex h-9 px-4 items-center justify-center rounded-full bg-white dark:bg-[#2c2435] border border-gray-200 dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors hover:border-primary/30 whitespace-nowrap">
+                            Poupança
+                        </button>
+<button class="flex h-9 px-4 items-center justify-center rounded-full bg-white dark:bg-[#2c2435] border border-gray-200 dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors hover:border-primary/30 whitespace-nowrap">
+                            Investimentos
+                        </button>
+<button class="flex h-9 px-4 items-center justify-center rounded-full bg-white dark:bg-[#2c2435] border border-gray-200 dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors hover:border-primary/30 whitespace-nowrap">
+                            Cartão de Crédito
+                        </button>
+</div>
+<!-- Accounts Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+<!-- Card 1: NuBank -->
+<div class="group relative bg-white dark:bg-[#2c2435] rounded-2xl p-6 shadow-soft hover:shadow-hover border border-transparent hover:border-primary/10 transition-all duration-300 cursor-pointer flex flex-col justify-between h-[220px]">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-full bg-[#820AD1] flex items-center justify-center text-white font-bold shadow-inner">
+<img alt="Nubank Logo" class="w-7 h-auto brightness-0 invert" data-alt="Nubank logo white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXfhlaH9Jgyvr6f3lCWBzEiF2YsF8ghRqDCg5ZW0m9tCVq-fW8JSHPHw1BsE6dlxczLdYe-Di7Zh7AJq92qtaj_q0qnkNiZvHUZBu2Mx74awHNwW-HInrSf5rFMqJifvwd-MKLjJaRC3DJWWKqJnA-qFOESHRZUZs8c1x8J9K9MY3LffkjZMXg-UZqMi9zoUuYo4X1IYuXz331eOeor0AskuS-5j5SsTe-uXRE5fy_3qWCkqyHO5GCvF0lhovVePxpxxJl8s557Zc"/>
+</div>
+<div class="flex flex-col">
+<h3 class="font-bold text-lg text-text-main-light dark:text-white group-hover:text-primary transition-colors">NuBank Principal</h3>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark">**** 8829</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-gray-100 dark:bg-[#3a3045] text-xs font-semibold text-text-secondary-light dark:text-gray-300 uppercase tracking-wide">Corrente</span>
+</div>
+<div class="mt-4">
+<p class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Saldo Disponível</p>
+<p class="text-3xl font-bold text-text-main-light dark:text-white tracking-tight">R$ 12.450,20</p>
+</div>
+<div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-[#3a3045]">
+<div class="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+<span class="material-symbols-outlined text-sm">arrow_upward</span>
+<span>R$ 1.200,00 entrantes</span>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary dark:group-hover:text-primary transition-colors transform group-hover:translate-x-1">arrow_forward</span>
+</div>
+</div>
+<!-- Card 2: Itau -->
+<div class="group relative bg-white dark:bg-[#2c2435] rounded-2xl p-6 shadow-soft hover:shadow-hover border border-transparent hover:border-primary/10 transition-all duration-300 cursor-pointer flex flex-col justify-between h-[220px]">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-full bg-[#EC7000] flex items-center justify-center text-white font-bold shadow-inner overflow-hidden p-2">
+<img alt="Itau Logo" class="w-full h-full object-contain brightness-0 invert" data-alt="Itau logo white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAB2iD4BBT0dKfG8nFEv0bvCLJ0Pzq_WKvZLLMKnGI_ziusx8IVdYnh8OOT7mSSWMnCB6onV0ikEoyBo0sRxIlMLkyhzGNF7ZZ-2WhQutN-RJ1GsICJSOpFUoaJCwea3m_K4TmqsnFnfGsL4ikFzOQNZPepY4Q4UDojqPzCaeu4sZJfokQ-E0zk2OiYuPodpvD3T3f8HSBsul5KWkII7bQa5uccD-hz9hj8RCQ1PJ2QSC8Uu29deDM8SmvO4A3jVz5zNrv-Vwu7wjo"/>
+</div>
+<div class="flex flex-col">
+<h3 class="font-bold text-lg text-text-main-light dark:text-white group-hover:text-primary transition-colors">Reserva Emergência</h3>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark">**** 4120</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-purple-50 dark:bg-primary/20 text-xs font-semibold text-primary dark:text-purple-300 uppercase tracking-wide">Poupança</span>
+</div>
+<div class="mt-4">
+<p class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Saldo Aplicado</p>
+<p class="text-3xl font-bold text-text-main-light dark:text-white tracking-tight">R$ 30.000,00</p>
+</div>
+<div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-[#3a3045]">
+<div class="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>Rendendo 102% CDI</span>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary dark:group-hover:text-primary transition-colors transform group-hover:translate-x-1">arrow_forward</span>
+</div>
+</div>
+<!-- Card 3: XP -->
+<div class="group relative bg-white dark:bg-[#2c2435] rounded-2xl p-6 shadow-soft hover:shadow-hover border border-transparent hover:border-primary/10 transition-all duration-300 cursor-pointer flex flex-col justify-between h-[220px]">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-full bg-black flex items-center justify-center text-white font-bold shadow-inner p-2">
+<span class="font-bold text-xl italic font-serif">XP</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-bold text-lg text-text-main-light dark:text-white group-hover:text-primary transition-colors">Carteira Ações</h3>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark">Broker Account</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-xs font-semibold text-blue-600 dark:text-blue-300 uppercase tracking-wide">Investimento</span>
+</div>
+<div class="mt-4">
+<p class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Saldo Atual</p>
+<p class="text-3xl font-bold text-red-500 dark:text-red-400 tracking-tight">- R$ 450,00</p>
+</div>
+<div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-[#3a3045]">
+<div class="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+<span>Variação negativa 24h</span>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary dark:group-hover:text-primary transition-colors transform group-hover:translate-x-1">arrow_forward</span>
+</div>
+</div>
+<!-- Card 4: Inter (New Account Example) -->
+<div class="group relative bg-white dark:bg-[#2c2435] rounded-2xl p-6 shadow-soft hover:shadow-hover border border-transparent hover:border-primary/10 transition-all duration-300 cursor-pointer flex flex-col justify-between h-[220px]">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-full bg-[#FF7A00] flex items-center justify-center text-white font-bold shadow-inner">
+<span class="font-bold text-lg">in</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-bold text-lg text-text-main-light dark:text-white group-hover:text-primary transition-colors">Inter Global</h3>
+<p class="text-xs text-text-secondary-light dark:text-text-secondary-dark">Dólar account</p>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-yellow-50 dark:bg-yellow-900/20 text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase tracking-wide">Global</span>
+</div>
+<div class="mt-4">
+<p class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark mb-1">Saldo em Dólar</p>
+<div class="flex items-baseline gap-2">
+<p class="text-3xl font-bold text-text-main-light dark:text-white tracking-tight">$ 5,230.50</p>
+<span class="text-xs text-text-secondary-light dark:text-text-secondary-dark">USD</span>
+</div>
+</div>
+<div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100 dark:border-[#3a3045]">
+<div class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+<span class="material-symbols-outlined text-sm">currency_exchange</span>
+<span>≈ R$ 26.152,50</span>
+</div>
+<span class="material-symbols-outlined text-gray-300 group-hover:text-primary dark:group-hover:text-primary transition-colors transform group-hover:translate-x-1">arrow_forward</span>
+</div>
+</div>
+<!-- Card 5: Add New Card Placeholder -->
+<div class="group relative bg-transparent rounded-2xl p-6 border-2 border-dashed border-gray-300 dark:border-[#3a3045] hover:border-primary hover:bg-primary/5 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center h-[220px] text-center gap-3">
+<div class="size-14 rounded-full bg-gray-100 dark:bg-[#2c2435] group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+<span class="material-symbols-outlined text-3xl text-gray-400 group-hover:text-primary transition-colors">add_circle</span>
+</div>
+<div>
+<h3 class="font-bold text-lg text-text-main-light dark:text-white group-hover:text-primary transition-colors">Conectar nova conta</h3>
+<p class="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-1">Sincronize via Open Finance</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<script>
+        // Simple theme toggle logic for demonstration
+        // In a real app, this would be handled by a proper state manager
+        const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        
+        // This is just to ensure the classes are respected if the user's OS is in dark mode
+        // Though the request specified 'light' class on html tag, this ensures tailwind's 'class' strategy works if we wanted to toggle it.
+        if (darkModeMediaQuery.matches) {
+            // document.documentElement.classList.add('dark');
+        }
+    </script>
+</body></html>

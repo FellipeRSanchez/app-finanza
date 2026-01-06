@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html class="light" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Patrimônio - Finanças Pessoais</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7311d4",
+                        "background-light": "#f7f6f8",
+                        "background-dark": "#191022",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#141118]">
+<div class="relative flex h-screen w-full overflow-hidden">
+<!-- Sidebar -->
+<aside class="flex w-72 flex-col border-r border-[#f2f0f4] bg-white h-full hidden lg:flex">
+<div class="flex h-full flex-col justify-between p-4">
+<div class="flex flex-col gap-4">
+<div class="flex gap-3 px-2 py-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-primary/10" data-alt="User profile abstract gradient" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDgC_wrBdoIRJkQy56T3qMk6kGVH9qtFQjOgVQmPCU6ytgy2BX6F66Ph1bBtA6hjIJfe-dH0oTT7IPtAo_1I6fCUnGqk3GMiNteFjsjY3RkpSpW4cVn9tn9W2KX2U75gy-w2cn2rIkUSjaszZYX12Ux2NG46UZX0B4oE2D9cjLEst0cxDQ3eAiLUVuHT7afYuWTjlASpomKS0u0PQ9cYuOuVjqohnUJ-5HA2aDz8b_qZYHi1mjGR1brOWBoTbUQZB1RSH_xwyWwZyc");'></div>
+<div class="flex flex-col">
+<h1 class="text-[#141118] text-base font-bold leading-normal">Finanças</h1>
+<p class="text-[#756189] text-sm font-normal leading-normal">Gestão Pessoal</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#f2f0f4] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#756189] group-hover:text-[#141118]">dashboard</span>
+<p class="text-[#141118] text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#f2f0f4] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#756189] group-hover:text-[#141118]">receipt_long</span>
+<p class="text-[#141118] text-sm font-medium leading-normal">Extrato</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl bg-primary/10 text-primary" href="#">
+<span class="material-symbols-outlined text-primary fill-1">account_balance_wallet</span>
+<p class="text-primary text-sm font-bold leading-normal">Patrimônio</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#f2f0f4] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#756189] group-hover:text-[#141118]">pie_chart</span>
+<p class="text-[#141118] text-sm font-medium leading-normal">Planejamento</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[#f2f0f4] transition-colors group" href="#">
+<span class="material-symbols-outlined text-[#756189] group-hover:text-[#141118]">settings</span>
+<p class="text-[#141118] text-sm font-medium leading-normal">Configurações</p>
+</a>
+</nav>
+</div>
+<div class="px-2">
+<div class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 text-red-600 cursor-pointer transition-colors">
+<span class="material-symbols-outlined">logout</span>
+<p class="text-sm font-medium leading-normal">Sair</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-full overflow-hidden relative">
+<!-- Top Navbar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#f2f0f4] bg-white px-6 py-4 lg:px-10 shrink-0 z-10">
+<div class="flex items-center gap-4 text-[#141118]">
+<div class="lg:hidden p-2 -ml-2 rounded-lg hover:bg-gray-100 cursor-pointer">
+<span class="material-symbols-outlined">menu</span>
+</div>
+<h2 class="text-[#141118] text-xl font-bold leading-tight tracking-[-0.015em]">Visão Geral do Patrimônio</h2>
+</div>
+<div class="flex gap-3">
+<button class="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[#f2f0f4] hover:bg-[#e8e6ea] text-[#141118] transition-colors">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[#f2f0f4] hover:bg-[#e8e6ea] text-[#141118] transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2.5 right-2.5 size-2 bg-red-500 rounded-full border border-white"></span>
+</button>
+<button class="hidden md:flex size-10 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[#f2f0f4] hover:bg-[#e8e6ea] text-[#141118] transition-colors">
+<span class="material-symbols-outlined text-[20px]">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto bg-background-light p-4 lg:p-10">
+<div class="mx-auto max-w-[1000px] flex flex-col gap-6">
+<!-- Hero Section: Total Net Worth -->
+<div class="bg-white rounded-2xl p-6 lg:p-8 shadow-sm border border-[#f2f0f4] flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">savings</span>
+<p class="text-[#756189] text-sm font-semibold uppercase tracking-wider">Patrimônio Líquido Total</p>
+</div>
+<h1 class="text-[#141118] text-4xl lg:text-5xl font-bold tracking-tight">R$ 1.250.400,00</h1>
+<div class="flex items-center gap-2 mt-1">
+<span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+                                +1.2%
+                            </span>
+<p class="text-sm text-gray-500">em relação ao mês passado</p>
+</div>
+</div>
+<div class="flex gap-3 w-full md:w-auto">
+<button class="flex-1 md:flex-none h-11 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                            Adicionar Ativo
+                        </button>
+<button class="flex-1 md:flex-none h-11 px-5 bg-white border border-[#e0dbe6] hover:bg-[#f9f8fa] text-[#141118] text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                            Relatório
+                        </button>
+</div>
+</div>
+<!-- Summary Cards Row -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<!-- Assets -->
+<div class="bg-white rounded-xl p-5 border border-[#f2f0f4] shadow-sm flex flex-col gap-1 relative overflow-hidden group">
+<div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-green-600 text-6xl">arrow_upward</span>
+</div>
+<p class="text-[#756189] text-sm font-medium">Ativos Totais</p>
+<p class="text-[#141118] text-2xl font-bold">R$ 1.300.000,00</p>
+<div class="flex items-center gap-1 text-green-600 text-xs font-semibold mt-1">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+<span>0.5% este mês</span>
+</div>
+</div>
+<!-- Liabilities -->
+<div class="bg-white rounded-xl p-5 border border-[#f2f0f4] shadow-sm flex flex-col gap-1 relative overflow-hidden group">
+<div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-red-600 text-6xl">arrow_downward</span>
+</div>
+<p class="text-[#756189] text-sm font-medium">Passivos Totais</p>
+<p class="text-[#141118] text-2xl font-bold">R$ 49.600,00</p>
+<div class="flex items-center gap-1 text-red-600 text-xs font-semibold mt-1">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+<span>2.1% este mês</span>
+</div>
+</div>
+<!-- Liquidity -->
+<div class="bg-white rounded-xl p-5 border border-[#f2f0f4] shadow-sm flex flex-col gap-1 relative overflow-hidden group">
+<div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-blue-600 text-6xl">water_drop</span>
+</div>
+<p class="text-[#756189] text-sm font-medium">Liquidez Imediata</p>
+<p class="text-[#141118] text-2xl font-bold">R$ 50.000,00</p>
+<div class="flex items-center gap-1 text-gray-400 text-xs font-semibold mt-1">
+<span class="material-symbols-outlined text-[14px]">remove</span>
+<span>Sem alteração</span>
+</div>
+</div>
+</div>
+<!-- Chart Section -->
+<div class="bg-white rounded-2xl p-6 shadow-sm border border-[#f2f0f4]">
+<div class="flex justify-between items-center mb-6">
+<h3 class="text-[#141118] text-lg font-bold">Evolução Patrimonial</h3>
+<div class="flex gap-2">
+<select class="bg-[#f2f0f4] text-xs font-medium px-3 py-1.5 rounded-lg border-none focus:ring-0 cursor-pointer outline-none">
+<option>Últimos 12 meses</option>
+<option>Este ano</option>
+<option>Desde o início</option>
+</select>
+</div>
+</div>
+<!-- Chart Placeholder using CSS Gradient to simulate chart area -->
+<div class="w-full h-[240px] relative flex items-end justify-between px-2 gap-2">
+<!-- Y-Axis Lines -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none z-0">
+<div class="w-full h-px bg-gray-100"></div>
+<div class="w-full h-px bg-gray-100"></div>
+<div class="w-full h-px bg-gray-100"></div>
+<div class="w-full h-px bg-gray-100"></div>
+<div class="w-full h-px bg-gray-100"></div>
+</div>
+<!-- Simulated Data Bars/Area -->
+<div class="flex items-end gap-1 sm:gap-4 w-full h-[200px] z-10 px-4">
+<!-- Bars representing growth -->
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[30%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.10M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[35%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.12M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[38%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.14M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[42%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.16M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[40%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.15M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[45%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.18M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[50%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.20M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[55%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.22M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[60%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.24M</div></div>
+<div class="w-full bg-primary/20 hover:bg-primary/30 rounded-t-sm h-[62%] relative group transition-all"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.25M</div></div>
+<div class="w-full bg-primary/40 hover:bg-primary/50 rounded-t-sm h-[65%] relative group transition-all border-t-2 border-primary"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.25M</div></div>
+<div class="w-full bg-primary hover:bg-primary/90 rounded-t-sm h-[68%] relative group transition-all shadow-lg shadow-primary/30"><div class="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded">1.25M</div></div>
+</div>
+</div>
+<div class="flex justify-between mt-2 text-xs text-gray-400 px-4">
+<span>Jan</span>
+<span>Fev</span>
+<span>Mar</span>
+<span>Abr</span>
+<span>Mai</span>
+<span>Jun</span>
+<span>Jul</span>
+<span>Ago</span>
+<span>Set</span>
+<span>Out</span>
+<span>Nov</span>
+<span>Dez</span>
+</div>
+</div>
+<!-- Detailed Breakdown Section -->
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h3 class="text-[#141118] text-lg font-bold">Quebra por Tipo</h3>
+<button class="text-primary text-sm font-semibold hover:underline">Ver Detalhes</button>
+</div>
+<!-- Table Header -->
+<div class="hidden md:grid grid-cols-12 gap-4 px-4 py-2 text-sm font-medium text-[#756189]">
+<div class="col-span-5">Conta / Ativo</div>
+<div class="col-span-3">Tipo</div>
+<div class="col-span-4 text-right">Valor Atual</div>
+</div>
+<!-- List Items -->
+<div class="bg-white rounded-xl shadow-sm border border-[#f2f0f4] overflow-hidden">
+<!-- Item 1 -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center border-b border-[#f2f0f4] hover:bg-[#fcfbfc] transition-colors">
+<div class="col-span-12 md:col-span-5 flex items-center gap-3">
+<div class="size-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined">account_balance</span>
+</div>
+<div>
+<p class="font-bold text-[#141118]">Itaú Personalité</p>
+<p class="text-xs text-gray-500">Conta Corrente • Final 4920</p>
+</div>
+</div>
+<div class="col-span-6 md:col-span-3 flex items-center">
+<span class="bg-green-50 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-md border border-green-100">Ativo</span>
+</div>
+<div class="col-span-6 md:col-span-4 text-right">
+<p class="text-[#141118] font-bold">R$ 15.000,00</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center border-b border-[#f2f0f4] hover:bg-[#fcfbfc] transition-colors">
+<div class="col-span-12 md:col-span-5 flex items-center gap-3">
+<div class="size-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
+<span class="material-symbols-outlined">show_chart</span>
+</div>
+<div>
+<p class="font-bold text-[#141118]">XP Investimentos</p>
+<p class="text-xs text-gray-500">Carteira de Ações e FIIs</p>
+</div>
+</div>
+<div class="col-span-6 md:col-span-3 flex items-center">
+<span class="bg-green-50 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-md border border-green-100">Ativo</span>
+</div>
+<div class="col-span-6 md:col-span-4 text-right">
+<p class="text-[#141118] font-bold">R$ 800.000,00</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center border-b border-[#f2f0f4] hover:bg-[#fcfbfc] transition-colors">
+<div class="col-span-12 md:col-span-5 flex items-center gap-3">
+<div class="size-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">directions_car</span>
+</div>
+<div>
+<p class="font-bold text-[#141118]">Veículo Próprio</p>
+<p class="text-xs text-gray-500">BMW 320i 2022</p>
+</div>
+</div>
+<div class="col-span-6 md:col-span-3 flex items-center">
+<span class="bg-green-50 text-green-700 text-xs font-semibold px-2.5 py-1 rounded-md border border-green-100">Ativo</span>
+</div>
+<div class="col-span-6 md:col-span-4 text-right">
+<p class="text-[#141118] font-bold">R$ 285.000,00</p>
+</div>
+</div>
+<!-- Item 4 (Liability) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center border-b border-[#f2f0f4] hover:bg-[#fcfbfc] transition-colors">
+<div class="col-span-12 md:col-span-5 flex items-center gap-3">
+<div class="size-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+<span class="material-symbols-outlined">credit_card</span>
+</div>
+<div>
+<p class="font-bold text-[#141118]">Nubank</p>
+<p class="text-xs text-gray-500">Cartão de Crédito (Fatura Aberta)</p>
+</div>
+</div>
+<div class="col-span-6 md:col-span-3 flex items-center">
+<span class="bg-red-50 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md border border-red-100">Passivo</span>
+</div>
+<div class="col-span-6 md:col-span-4 text-right">
+<p class="text-red-600 font-bold">- R$ 2.400,00</p>
+</div>
+</div>
+<!-- Item 5 (Liability) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center hover:bg-[#fcfbfc] transition-colors">
+<div class="col-span-12 md:col-span-5 flex items-center gap-3">
+<div class="size-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+<span class="material-symbols-outlined">home</span>
+</div>
+<div>
+<p class="font-bold text-[#141118]">Financiamento Imobiliário</p>
+<p class="text-xs text-gray-500">Caixa Econômica - Restam 120 parcelas</p>
+</div>
+</div>
+<div class="col-span-6 md:col-span-3 flex items-center">
+<span class="bg-red-50 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md border border-red-100">Passivo</span>
+</div>
+<div class="col-span-6 md:col-span-4 text-right">
+<p class="text-red-600 font-bold">- R$ 47.200,00</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Spacer -->
+<div class="h-10"></div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
