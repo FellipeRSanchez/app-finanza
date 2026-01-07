@@ -7,7 +7,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Filter, Trash2, Edit, ShoppingCart, Banknote, Film, Car, ShoppingBag, FileText } from 'lucide-react'; // Ícones corrigidos e FileText adicionado
+import { Plus, Filter, Trash2, Edit, ShoppingCart, Banknote, Film, Car, ShoppingBag, FileText, ArrowUp, ArrowDown } from 'lucide-react'; // Ícones corrigidos e FileText adicionado
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -89,6 +89,8 @@ const Lancamentos = () => {
       case 'assinaturas': return <Film className="h-4 w-4" />;
       case 'transporte': return <Car className="h-4 w-4" />;
       case 'compras': return <ShoppingBag className="h-4 w-4" />;
+      case 'outras receitas': return <ArrowDown className="h-4 w-4" />;
+      case 'outras despesas': return <ArrowUp className="h-4 w-4" />;
       default: return <FileText className="h-4 w-4" />;
     }
   };
@@ -122,7 +124,7 @@ const Lancamentos = () => {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm mb-1">
             <a className="hover:text-primary-new" href="#">Finanças</a>
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            <span className="text-[16px]">/</span> {/* Usando '/' como separador */}
             <span className="text-text-main-light dark:text-text-main-dark font-medium">Lançamentos</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-text-main-light dark:text-text-main-dark">Extrato de Lançamentos</h1>
