@@ -25,7 +25,7 @@ interface TransferenciaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  transferencia?: any; // Can be a transfer object for editing
+  transferencia?: any;
   accounts: any[];
   grupoId: string;
   systemCategories: { transferenciaId: string | null; pagamentoFaturaId: string | null };
@@ -81,16 +81,18 @@ const TransferenciaModal = ({
       return;
     }
     if (!systemCategories.transferenciaId) {
-      showError('Categoria de transferência não encontrada. Contate o suporte.');
+      showError('Categoria de transferência não encontrada.');
       return;
     }
 
     setLoading(true);
     try {
       const valor = parseFloat(formData.tra_valor.replace(',', '.'));
+      const contaOrigemNome = accounts.find(a => a.con_id === formData.tra_conta_origem)?.con_nome;
+      const contaDestinoNome = accounts.find(a => a.con_id === formData.tra_conta_destino)?.con_nome;
 
       if (transferencia) {
-        // Update existing transfer and its associated lancamentos
+        // Update transfer
         const { error: updateTransferError } = await supabase
           .from('transferencias')
           .update({
@@ -104,69 +106,61 @@ const TransferenciaModal = ({
           .eq('tra_id', transferencia.tra_id);
         if (updateTransferError) throw updateTransferError;
 
-        // Update lancamento de origem (débito)
-        const { error: updateOriginLancamentoError } = await supabase
+        // Update Origin Leg
+        await supabase
           .from('lancamentos')
           .update({
             lan_data: formData.tra_data,
-            lan_descricao: `Transferência para ${accounts.find(a => a.con_id === formData.tra_conta_destino)?.con_nome || 'outra conta'}`,
-            lan_valor: -valor, // Débito
+            lan_descricao: `Transferência para ${contaDestinoNome}`,
+            lan_valor: -valor,
             lan_conta: formData.tra_conta_origem,
             lan_conciliado: formData.tra_conciliado,
           })
           .eq('lan_id', transferencia.tra_lancamento_origem);
-        if (updateOriginLancamentoError) throw updateOriginLancamentoError;
 
-        // Update lancamento de destino (crédito)
-        const { error: updateDestinoLancamentoError } = await supabase
+        // Update Destination Leg
+        await supabase
           .from('lancamentos')
           .update({
             lan_data: formData.tra_data,
-            lan_descricao: `Transferência de ${accounts.find(a => a.con_id === formData.tra_conta_origem)?.con_nome || 'outra conta'}`,
-            lan_valor: valor, // Crédito
+            lan_descricao: `Transferência de ${contaOrigemNome}`,
+            lan_valor: valor,
             lan_conta: formData.tra_conta_destino,
             lan_conciliado: formData.tra_conciliado,
           })
           .eq('lan_id', transferencia.tra_lancamento_destino);
-        if (updateDestinoLancamentoError) throw updateDestinoLancamentoError;
 
         showSuccess('Transferência atualizada!');
-
       } else {
-        // Create new transfer and its associated lancamentos
-        // 1. Create two lancamentos first
-        const { data: lancamentoOrigem, error: loError } = await supabase
+        // 1. Create lancamentos legs
+        const { data: lanOrigem, error: loError } = await supabase
           .from('lancamentos')
           .insert({
             lan_data: formData.tra_data,
-            lan_descricao: `Transferência para ${accounts.find(a => a.con_id === formData.tra_conta_destino)?.con_nome || 'outra conta'}`,
-            lan_valor: -valor, // Débito
+            lan_descricao: `Transferência para ${contaDestinoNome}`,
+            lan_valor: -valor,
             lan_categoria: systemCategories.transferenciaId,
             lan_conta: formData.tra_conta_origem,
             lan_conciliado: formData.tra_conciliado,
             lan_grupo: grupoId,
-          })
-          .select('lan_id')
-          .single();
+          }).select().single();
         if (loError) throw loError;
 
-        const { data: lancamentoDestino, error: ldError } = await supabase
+        const { data: lanDestino, error: ldError } = await supabase
           .from('lancamentos')
           .insert({
             lan_data: formData.tra_data,
-            lan_descricao: `Transferência de ${accounts.find(a => a.con_id === formData.tra_conta_origem)?.con_nome || 'outra conta'}`,
-            lan_valor: valor, // Crédito
+            lan_descricao: `Transferência de ${contaOrigemNome}`,
+            lan_valor: valor,
             lan_categoria: systemCategories.transferenciaId,
             lan_conta: formData.tra_conta_destino,
             lan_conciliado: formData.tra_conciliado,
             lan_grupo: grupoId,
-          })
-          .select('lan_id')
-          .single();
+          }).select().single();
         if (ldError) throw ldError;
 
-        // 2. Create the transfer record linking the two lancamentos
-        const { error: insertTransferError } = await supabase
+        // 2. Create the transfer record
+        const { data: newTra, error: traError } = await supabase
           .from('transferencias')
           .insert({
             tra_grupo: grupoId,
@@ -175,11 +169,17 @@ const TransferenciaModal = ({
             tra_valor: valor,
             tra_conta_origem: formData.tra_conta_origem,
             tra_conta_destino: formData.tra_conta_destino,
-            tra_lancamento_origem: lancamentoOrigem.lan_id,
-            tra_lancamento_destino: lancamentoDestino.lan_id,
+            tra_lancamento_origem: lanOrigem.lan_id,
+            tra_lancamento_destino: lanDestino.lan_id,
             tra_conciliado: formData.tra_conciliado,
-          });
-        if (insertTransferError) throw insertTransferError;
+          }).select().single();
+        if (traError) throw traError;
+
+        // 3. Link lancamentos back to transfer (IMPORTANT)
+        await supabase
+          .from('lancamentos')
+          .update({ lan_transferencia: newTra.tra_id })
+          .in('lan_id', [lanOrigem.lan_id, lanDestino.lan_id]);
 
         showSuccess('Transferência criada!');
       }
@@ -202,102 +202,46 @@ const TransferenciaModal = ({
             {transferencia ? 'Editar Transferência' : 'Nova Transferência'}
           </DialogTitle>
         </DialogHeader>
-        
-        <form key={transferencia?.tra_id || 'new'} onSubmit={handleSubmit} className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Data</Label>
-            <Input 
-              type="date" 
-              value={formData.tra_data} 
-              onChange={e => setFormData({...formData, tra_data: e.target.value})}
-              required
-              className="rounded-xl border-border-light bg-background-light/50 font-bold"
-            />
+            <Input type="date" value={formData.tra_data} onChange={e => setFormData({...formData, tra_data: e.target.value})} required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
           </div>
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-[#756189]">Descrição (Opcional)</Label>
-            <Input 
-              value={formData.tra_descricao} 
-              onChange={e => setFormData({...formData, tra_descricao: e.target.value})}
-              placeholder="Ex: Transferência para poupança"
-              className="rounded-xl border-border-light bg-background-light/50 font-bold"
-            />
-          </div>
-
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Valor</Label>
-            <Input 
-              type="number" 
-              step="0.01"
-              value={formData.tra_valor} 
-              onChange={e => setFormData({...formData, tra_valor: e.target.value})}
-              placeholder="0,00"
-              required
-              className="rounded-xl border-border-light bg-background-light/50 font-bold"
-            />
+            <Input type="number" step="0.01" value={formData.tra_valor} onChange={e => setFormData({...formData, tra_valor: e.target.value})} placeholder="0,00" required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
           </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Origem</Label>
-              <Select 
-                value={formData.tra_conta_origem} 
-                onValueChange={val => setFormData({...formData, tra_conta_origem: val})}
-                required
-              >
+              <Label className="text-[10px] font-black uppercase text-[#756189]">Origem (Debita)</Label>
+              <Select value={formData.tra_conta_origem} onValueChange={val => setFormData({...formData, tra_conta_origem: val})}>
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {accounts.map(acc => (
-                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
-                  ))}
+                  {accounts.map(acc => <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Destino</Label>
-              <Select 
-                value={formData.tra_conta_destino} 
-                onValueChange={val => setFormData({...formData, tra_conta_destino: val})}
-                required
-              >
+              <Label className="text-[10px] font-black uppercase text-[#756189]">Destino (Credita)</Label>
+              <Select value={formData.tra_conta_destino} onValueChange={val => setFormData({...formData, tra_conta_destino: val})}>
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {accounts.map(acc => (
-                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
-                  ))}
+                  {accounts.map(acc => <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
-
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-[#756189]">Status da Transferência</Label>
-            <Select 
-              value={formData.tra_conciliado ? "true" : "false"} 
-              onValueChange={val => setFormData({...formData, tra_conciliado: val === "true"})}
-            >
-              <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-white border shadow-lg rounded-xl">
-                <SelectItem value="true">Confirmada</SelectItem>
-                <SelectItem value="false">Pendente</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Observação</Label>
+            <Input value={formData.tra_descricao} onChange={e => setFormData({...formData, tra_descricao: e.target.value})} placeholder="Opcional..." className="rounded-xl border-border-light bg-background-light/50 font-bold" />
           </div>
-
           <DialogFooter className="pt-4">
-            <Button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg shadow-primary/25"
-            >
-              {loading ? 'Processando...' : transferencia ? 'Atualizar Transferência' : 'Criar Transferência'}
+            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg">
+              {loading ? 'Processando...' : 'Confirmar Transferência'}
             </Button>
           </DialogFooter>
         </form>

@@ -50,7 +50,7 @@ const CommonLancamentoModal = ({
     lan_categoria: '',
     lan_conta: '',
     lan_conciliado: false,
-    cat_tipo: 'despesa' // Default for new common transactions
+    cat_tipo: 'despesa'
   });
 
   useEffect(() => {
@@ -72,7 +72,7 @@ const CommonLancamentoModal = ({
           lan_descricao: '',
           lan_valor: '',
           lan_categoria: '',
-          lan_conta: accounts.length > 0 ? accounts[0].con_id : '', // Default to first account if available
+          lan_conta: accounts.length > 0 ? accounts[0].con_id : '',
           lan_conciliado: false,
           cat_tipo: 'despesa'
         });
@@ -127,8 +127,13 @@ const CommonLancamentoModal = ({
     }
   };
 
-  // Filter categories by selected type and exclude 'sistema' categories
-  const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo && c.cat_tipo !== 'sistema');
+  // Improved filtering: Ensure we only show common categories of the selected type
+  const filteredCategories = categories.filter(c => 
+    c.cat_tipo === formData.cat_tipo && 
+    c.cat_tipo !== 'sistema' &&
+    c.cat_nome !== 'Transferência entre Contas' &&
+    c.cat_nome !== 'Pagamento de Fatura'
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,7 +144,7 @@ const CommonLancamentoModal = ({
           </DialogTitle>
         </DialogHeader>
         
-        <form key={lancamento?.lan_id || 'new'} onSubmit={handleSubmit} className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-[#756189]">Data</Label>
