@@ -7,19 +7,18 @@ import {
   Wallet, 
   CreditCard, 
   BarChart3, 
-  Settings, 
   LogOut, 
-  UserCircle, 
   TrendingUp, 
   Upload,
-  CheckCircle
+  CheckCircle,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Transações', href: '/lancamentos', icon: FileText },
+  { name: 'Lançamentos', href: '/lancamentos', icon: FileText },
   { name: 'Contas', href: '/patrimonio', icon: Wallet },
   { name: 'Cartões', href: '/cartoes', icon: CreditCard },
   { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
@@ -33,7 +32,7 @@ const Sidebar = () => {
   const { signOut, user } = useAuth();
 
   return (
-    <div className="h-full bg-card-light dark:bg-[#1e1629] border-r border-border-light dark:border-[#2d2438] flex flex-col shrink-0 z-20">
+    <div className="h-full bg-white dark:bg-[#1e1629] border-r border-border-light dark:border-[#2d2438] flex flex-col shrink-0 z-20">
       {/* Branding Area */}
       <div className="p-8 pb-6 flex flex-col items-center gap-2">
         <img src="/logo.png" alt="Ratio Logo" className="h-12 w-12 object-contain" />
@@ -71,22 +70,21 @@ const Sidebar = () => {
         })}
       </nav>
       
-      {/* User Profile and Sign Out */}
-      <div className="p-4 border-t border-border-light dark:border-[#2d2438]">
-        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-background-light dark:hover:bg-[#2d2438] cursor-pointer transition-colors overflow-hidden">
-          <div className="bg-background-light dark:bg-[#2d2438] rounded-full h-10 w-10 border-2 border-white dark:border-[#2d2438] shadow-sm flex items-center justify-center shrink-0 text-text-secondary-light">
-            <UserCircle className="w-6 h-6" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <h3 className="text-sm font-bold text-text-main-light dark:text-white truncate">
-              {user?.email?.split('@')[0] || 'Usuário'}
-            </h3>
-            <p className="text-[10px] font-bold text-primary uppercase">Premium</p>
-          </div>
-        </div>
+      {/* Footer Actions */}
+      <div className="p-4 border-t border-border-light dark:border-[#2d2438] space-y-1">
+        <Link
+          to="/configuracoes"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group',
+            location.pathname === '/configuracoes' ? 'bg-primary/10 text-primary' : 'text-text-secondary-light hover:bg-background-light'
+          )}
+        >
+          <Settings className="w-4 h-4" />
+          <span className="text-xs font-bold uppercase tracking-wider">Ajustes</span>
+        </Link>
         <button
           onClick={signOut}
-          className="flex items-center w-full gap-3 px-3 py-2.5 mt-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 font-medium transition-all"
+          className="flex items-center w-full gap-3 px-3 py-2.5 rounded-xl text-rose-600 dark:text-red-400 hover:bg-rose-50 dark:hover:bg-red-900/10 font-medium transition-all"
         >
           <LogOut className="w-4 h-4" />
           <span className="text-xs font-bold uppercase tracking-wider">Sair da conta</span>

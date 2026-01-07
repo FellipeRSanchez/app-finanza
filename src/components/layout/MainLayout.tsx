@@ -11,9 +11,10 @@ import { MadeWithDyad } from '@/components/made-with-dyad';
 interface MainLayoutProps {
   children: React.ReactNode;
   title: string;
+  hideGlobalSearch?: boolean;
 }
 
-const MainLayout = ({ children, title }: MainLayoutProps) => {
+const MainLayout = ({ children, title, hideGlobalSearch }: MainLayoutProps) => {
   const { loading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -56,7 +57,11 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar onMenuClick={() => setSidebarOpen(true)} title={title} />
+        <Topbar 
+          onMenuClick={() => setSidebarOpen(true)} 
+          title={title} 
+          hideGlobalSearch={hideGlobalSearch}
+        />
         <main className="flex-1 overflow-y-auto p-6">
           {children}
           <MadeWithDyad />

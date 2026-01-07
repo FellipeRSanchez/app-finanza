@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Search, Bell, Eye, EyeOff } from 'lucide-react';
+import { Menu, Search, Bell, Eye, EyeOff, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -14,9 +14,10 @@ import { useState } from 'react';
 interface TopbarProps {
   onMenuClick: () => void;
   title: string;
+  hideGlobalSearch?: boolean;
 }
 
-const Topbar = ({ onMenuClick, title }: TopbarProps) => {
+const Topbar = ({ onMenuClick, title, hideGlobalSearch = false }: TopbarProps) => {
   const [hideValues, setHideValues] = useState(false);
 
   return (
@@ -37,14 +38,16 @@ const Topbar = ({ onMenuClick, title }: TopbarProps) => {
       </div>
 
       <div className="flex items-center gap-6 flex-1 max-w-xl justify-end">
-        <div className="relative w-full max-w-xs hidden sm:block group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-primary transition-colors" />
-          <Input 
-            className="h-11 pl-10 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus-visible:ring-2 focus-visible:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all shadow-sm" 
-            placeholder="Buscar transações ou contas..." 
-            type="text"
-          />
-        </div>
+        {!hideGlobalSearch && (
+          <div className="relative w-full max-w-xs hidden sm:block group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-primary transition-colors" />
+            <Input 
+              className="h-11 pl-10 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus-visible:ring-2 focus-visible:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all shadow-sm" 
+              placeholder="Buscar transações ou contas..." 
+              type="text"
+            />
+          </div>
+        )}
         
         <div className="flex items-center gap-2">
           <Button 
@@ -68,13 +71,21 @@ const Topbar = ({ onMenuClick, title }: TopbarProps) => {
                 <span className="absolute top-2.5 right-2.5 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#2c2435]"></span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 bg-white dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] rounded-xl mt-2">
-              <div className="p-4 text-center">
+            <DropdownMenuContent align="end" className="w-64 bg-white dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] rounded-xl mt-2 p-4 shadow-lg border">
+              <div className="text-center">
                 <p className="text-sm font-bold text-text-main-light dark:text-white">Notificações</p>
                 <p className="text-xs text-text-secondary-light mt-2">Nenhuma notificação no momento</p>
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
+          >
+            <UserCircle className="w-6 h-6" />
+          </Button>
         </div>
       </div>
     </header>
