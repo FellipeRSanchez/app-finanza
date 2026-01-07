@@ -10,17 +10,17 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <div className="w-full max-w-md">
         <Card className="bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
-          <div className="p-2 bg-primary flex justify-center">
+          <div className="p-6 bg-primary flex justify-center items-center">
             <img 
               src="/logo.png" 
-              alt="Logo" 
-              className="h-16 w-16 object-contain"
+              alt="Logo Finanças" 
+              className="h-20 w-20 object-contain drop-shadow-lg"
             />
           </div>
           <CardContent className="p-8">
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2"> Finanças Pessoais </h1>
-              <p className="text-gray-600 dark:text-gray-400"> Entre para gerenciar suas finanças </p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Finanças Pessoais</h1>
+              <p className="text-gray-600 dark:text-gray-400">Entre para gerenciar suas finanças</p>
             </div>
             <Auth 
               supabaseClient={supabase} 
