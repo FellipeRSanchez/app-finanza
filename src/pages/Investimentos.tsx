@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import AddInvestmentForm from '@/components/investments/AddInvestmentForm'; // Fixed import path
 
 interface Investment {
   id: string;
@@ -121,10 +122,7 @@ const Investimentos = () => {
               Acompanhe a performance detalhada da sua carteira.
             </p>
           </div>
-          <Button className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary-new px-5 text-sm font-semibold text-white shadow-lg shadow-primary-new/30 transition-all hover:bg-primary-new/90 focus:ring-2 focus:ring-primary-new focus:ring-offset-2 dark:focus:ring-offset-[#191022]">
-            <ArrowUp size={20} />
-            Novo Aporte
-          </Button>
+          <AddInvestmentForm onInvestmentAdded={fetchInvestments} />
         </div>
 
         {/* Summary Stats */}
