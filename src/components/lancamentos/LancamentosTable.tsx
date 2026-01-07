@@ -19,7 +19,10 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Edit2, 
-  Trash2 
+  Trash2,
+  Repeat2, // For transfers
+  CreditCard, // For payments
+  Banknote // Generic for common lancamentos
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -28,16 +31,16 @@ import { ptBR } from 'date-fns/locale';
 interface LancamentosTableProps {
   lancamentos: any[];
   loading: boolean;
-  onEditLancamento: (item: any) => void;
-  onDeleteLancamento: (id: string) => void;
+  onEditOperation: (item: any) => void;
+  onDeleteOperation: (id: string, type: 'lancamento' | 'transferencia' | 'pagamento') => void;
   formatCurrency: (value: number) => string;
 }
 
 const LancamentosTable: React.FC<LancamentosTableProps> = ({
   lancamentos,
   loading,
-  onEditLancamento,
-  onDeleteLancamento,
+  onEditOperation,
+  onDeleteOperation,
   formatCurrency,
 }) => {
   return (
@@ -73,54 +76,106 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({
                 <TableCell colSpan={7} className="h-64 text-center">
                   <div className="flex flex-col items-center gap-3 opacity-40">
                     <Wallet className="w-12 h-12 text-[#756189]" />
-                    <p className="text-sm font-bold uppercase tracking-widest">Nenhum lançamento encontrado</p>
+                    <p className="text-sm font-bold uppercase tracking-widest">Nenhuma operação encontrada</p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : (
               lancamentos.map((item) => {
-                // Determine if it's income based on lan_valor sign
-                const isIncome = item.lan_valor > 0;
+                let date, description, accountName, categoryName, value, isConciliado, operationId, operationType;
+                let icon, iconBgClass, iconColorClass, valueColorClass;
+
+                if (item.operationType === 'lancamento') {
+                  date = item.lan_data;
+                  description = item.lan_descricao;
+                  accountName = item.contas?.con_nome || "—";
+                  categoryName = item.categorias?.cat_nome || "Sem Categoria";
+                  value = item.lan_valor;
+                  isConciliado = item.lan_conciliado;
+                  operationId = item.lan_id;
+                  operationType = 'lancamento';
+
+                  const isIncome = value > 0;
+                  icon = isIncome ? ArrowDownLeft : ArrowUpRight;
+                  iconBgClass = isIncome ? "bg-emerald-100" : "bg-rose-100";
+                  iconColorClass = isIncome ? "text-emerald-600" : "text-rose-600";
+                  valueColorClass = isIncome ? "text-emerald-600" : "text-rose-600";
+
+                } else if (item.operationType === 'transferencia') {
+                  date = item.tra_data;
+                  description = item.tra_descricao || `Transferência de ${item.conta_origem?.con_nome} para ${item.conta_destino?.con_nome}`;
+                  accountName = `${item.conta_origem?.con_nome} → ${item.conta_destino?.con_nome}`;
+                  categoryName = "Transferência";
+                  value = item.tra_valor;
+                  isConciliado = item.tra_conciliado;
+                  operationId = item.tra_id;
+                  operationType = 'transferencia';
+
+                  icon = Repeat2;
+                  iconBgClass = "bg-blue-100";
+                  iconColorClass = "text-blue-600";
+                  valueColorClass = "text-blue-600"; // Transfers are usually neutral or positive for destination
+
+                } else if (item.operationType === 'pagamento') {
+                  date = item.pag_data;
+                  description = `Pagamento de Fatura: ${item.conta_destino?.con_nome}`;
+                  accountName = `${item.conta_origem?.con_nome} → ${item.conta_destino?.con_nome}`;
+                  categoryName = "Pagamento de Fatura";
+                  value = item.pag_valor;
+                  isConciliado = item.pag_conciliado;
+                  operationId = item.pag_id;
+                  operationType = 'pagamento';
+
+                  icon = CreditCard;
+                  iconBgClass = "bg-purple-100";
+                  iconColorClass = "text-purple-600";
+                  valueColorClass = "text-purple-600";
+                } else {
+                  return null; // Should not happen
+                }
+
+                const DisplayIcon = icon;
+
                 return (
-                  <TableRow key={item.lan_id} className="border-border-light hover:bg-background-light/30 group transition-colors cursor-pointer">
+                  <TableRow key={operationId} className="border-border-light hover:bg-background-light/30 group transition-colors cursor-pointer">
                     <TableCell className="pl-8 py-4">
-                      <span className="text-xs font-bold text-[#756189]">{format(new Date(item.lan_data), 'dd/MM', { locale: ptBR })}</span>
+                      <span className="text-xs font-bold text-[#756189]">{format(new Date(date), 'dd/MM', { locale: ptBR })}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-[#141118] line-clamp-1">{item.lan_descricao}</span>
+                        <span className="text-sm font-bold text-[#141118] line-clamp-1">{description}</span>
                         <span className="text-[10px] text-text-secondary-light font-bold flex items-center gap-1">
-                          {item.lan_conciliado ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Clock className="w-3 h-3 text-amber-500" />}
-                          {item.lan_conciliado ? "Confirmado" : "Pendente"}
+                          {isConciliado ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Clock className="w-3 h-3 text-amber-500" />}
+                          {isConciliado ? "Confirmado" : "Pendente"}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <span className="text-xs font-bold text-[#756189] flex items-center gap-2">
                         <Wallet className="w-3 h-3" />
-                        {item.contas?.con_nome || "—"}
+                        {accountName}
                       </span>
                     </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-background-light text-[10px] font-black uppercase tracking-wider text-[#756189] border border-border-light">
                         <Tag className="w-3 h-3" />
-                        {item.categorias?.cat_nome || "Sem Categoria"}
+                        {categoryName}
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={cn(
                         "text-sm font-black tracking-tight",
-                        isIncome ? "text-emerald-600" : "text-rose-600"
+                        valueColorClass
                       )}>
-                        {isIncome ? "+" : "-"} {formatCurrency(Math.abs(item.lan_valor))}
+                        {value > 0 && operationType === 'lancamento' ? "+" : ""} {formatCurrency(Math.abs(value))}
                       </span>
                     </TableCell>
                     <TableCell>
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center mx-auto",
-                        isIncome ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600"
+                        iconBgClass, iconColorClass
                       )}>
-                        {isIncome ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                        <DisplayIcon className="w-4 h-4" />
                       </div>
                     </TableCell>
                     <TableCell className="pr-8 text-right">
@@ -128,7 +183,7 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => onEditLancamento(item)}
+                          onClick={() => onEditOperation(item)}
                           className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -136,7 +191,7 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => onDeleteLancamento(item.lan_id)}
+                          onClick={() => onDeleteOperation(operationId, operationType)}
                           className="h-8 w-8 rounded-lg hover:bg-rose-100 hover:text-rose-600"
                         >
                           <Trash2 className="w-4 h-4" />

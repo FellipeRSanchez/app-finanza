@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
 
-interface LancamentoModalProps {
+interface CommonLancamentoModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -32,7 +32,7 @@ interface LancamentoModalProps {
   grupoId: string;
 }
 
-const LancamentoModal = ({ 
+const CommonLancamentoModal = ({ 
   open, 
   onOpenChange, 
   onSuccess, 
@@ -41,7 +41,7 @@ const LancamentoModal = ({
   accounts = [],
   userId,
   grupoId
-}: LancamentoModalProps) => {
+}: CommonLancamentoModalProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     lan_data: new Date().toISOString().split('T')[0],
@@ -50,10 +50,9 @@ const LancamentoModal = ({
     lan_categoria: '',
     lan_conta: '',
     lan_conciliado: false,
-    cat_tipo: 'despesa'
+    cat_tipo: 'despesa' // Default for new common transactions
   });
 
-  // Sync form data when lancamento changes or modal opens
   useEffect(() => {
     if (open) {
       if (lancamento) {
@@ -73,7 +72,7 @@ const LancamentoModal = ({
           lan_descricao: '',
           lan_valor: '',
           lan_categoria: '',
-          lan_conta: accounts.length > 0 ? accounts[0].con_id : '',
+          lan_conta: accounts.length > 0 ? accounts[0].con_id : '', // Default to first account if available
           lan_conciliado: false,
           cat_tipo: 'despesa'
         });
@@ -128,9 +127,8 @@ const LancamentoModal = ({
     }
   };
 
-  // Filter categories by type, but fallback to all if none found
-  const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo);
-  const displayCategories = filteredCategories.length > 0 ? filteredCategories : categories;
+  // Filter categories by selected type and exclude 'sistema' categories
+  const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo && c.cat_tipo !== 'sistema');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -221,7 +219,7 @@ const LancamentoModal = ({
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {displayCategories.map(cat => (
+                  {filteredCategories.map(cat => (
                     <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                   ))}
                 </SelectContent>
@@ -260,4 +258,4 @@ const LancamentoModal = ({
   );
 };
 
-export default LancamentoModal;
+export default CommonLancamentoModal;

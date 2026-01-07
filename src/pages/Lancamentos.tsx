@@ -15,7 +15,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
-import LancamentoModal from '../components/lancamentos/LancamentoModal';
+import CommonLancamentoModal from '../components/lancamentos/CommonLancamentoModal';
+import TransferenciaModal from '../components/lancamentos/TransferenciaModal';
+import PagamentoFaturaModal from '../components/lancamentos/PagamentoFaturaModal';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Import new modular components
@@ -31,13 +33,25 @@ const Lancamentos = () => {
   const [lancamentos, setLancamentos] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
+  const [creditCardAccounts, setCreditCardAccounts] = useState<any[]>([]);
   const [groupId, setGroupId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [systemCategories, setSystemCategories] = useState({
+    transferenciaId: null as string | null,
+    pagamentoFaturaId: null as string | null,
+  });
 
-  // States for Modal
-  const [modalOpen, setModalOpen] = useState(false);
+  // States for Modals
+  const [commonLancamentoModalOpen, setCommonLancamentoModalOpen] = useState(false);
+  const [transferenciaModalOpen, setTransferenciaModalOpen] = useState(false);
+  const [pagamentoFaturaModalOpen, setPagamentoFaturaModalOpen] = useState(false);
+
   const [editingLancamento, setEditingLancamento] = useState<any>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingTransferencia, setEditingTransferencia] = useState<any>(null);
+  const [editingPagamentoFatura, setEditingPagamentoFatura] = useState<any>(null);
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'lancamento' | 'transferencia' | 'pagamento' } | null>(null);
 
   // Filter Values
   const [filterType, setFilterType] = useState('all');
@@ -60,7 +74,7 @@ const Lancamentos = () => {
 
   useEffect(() => {
     if (groupId) {
-      fetchLancamentos(groupId);
+      fetchAllOperations(groupId);
     }
   }, [groupId, filterType, filterAccount, filterCategory, filterPeriod, customRange]);
 
@@ -83,7 +97,17 @@ const Lancamentos = () => {
 
       setCategories(cData.data || []);
       setAccounts(aData.data || []);
+      setCreditCardAccounts(aData.data?.filter((acc: any) => acc.con_tipo === 'cartao') || []);
+
+      // Get system category IDs
+      const transferenciaCat = cData.data?.find((cat: any) => cat.cat_nome === 'Transferência entre Contas' && cat.cat_tipo === 'sistema');
+      const pagamentoFaturaCat = cData.data?.find((cat: any) => cat.cat_nome === 'Pagamento de Fatura' && cat.cat_tipo === 'sistema');
       
+      setSystemCategories({
+        transferenciaId: transferenciaCat?.cat_id || null,
+        pagamentoFaturaId: pagamentoFaturaCat?.cat_id || null,
+      });
+
     } catch (error) {
       console.error("[fetchInitialData] Error fetching initial data:", error);
     } finally {
@@ -91,20 +115,26 @@ const Lancamentos = () => {
     }
   };
 
-  const fetchLancamentos = async (gId: string) => {
+  const fetchAllOperations = async (gId: string) => {
     setLoading(true);
     try {
-      console.log("[fetchLancamentos] Current filterType:", filterType);
-      console.log("[fetchLancamentos] Current filterAccount:", filterAccount);
-      console.log("[fetchLancamentos] Current filterCategory:", filterCategory);
-      console.log("[fetchLancamentos] Current filterPeriod:", filterPeriod);
-      console.log("[fetchLancamentos] Current customRange:", customRange);
-
-      let query = supabase
+      let queryLancamentos = supabase
         .from('lancamentos')
-        .select('*, categorias(cat_nome, cat_tipo), contas(con_nome)')
+        .select('*, categorias(cat_nome, cat_tipo), contas(con_nome, con_tipo)')
         .eq('lan_grupo', gId)
         .order('lan_data', { ascending: false });
+
+      let queryTransferencias = supabase
+        .from('transferencias')
+        .select('*, conta_origem:contas!transferencias_tra_conta_origem_fkey(con_nome), conta_destino:contas!transferencias_tra_conta_destino_fkey(con_nome)')
+        .eq('tra_grupo', gId)
+        .order('tra_data', { ascending: false });
+
+      let queryPagamentos = supabase
+        .from('pagamentos_fatura')
+        .select('*, conta_origem:contas!pagamentos_fatura_pag_conta_origem_fkey(con_nome), conta_destino:contas!pagamentos_fatura_pag_conta_destino_fkey(con_nome)')
+        .eq('pag_grupo', gId)
+        .order('pag_data', { ascending: false });
 
       // Apply Period Filter
       const now = new Date();
@@ -129,27 +159,79 @@ const Lancamentos = () => {
         endStr = customRange.end;
       }
 
-      if (startStr) query = query.gte('lan_data', startStr);
-      if (endStr) query = query.lte('lan_data', endStr);
+      if (startStr) {
+        queryLancamentos = queryLancamentos.gte('lan_data', startStr);
+        queryLancamentos = queryLancamentos.lte('lan_data', endStr);
+        queryTransferencias = queryTransferencias.gte('tra_data', startStr);
+        queryTransferencias = queryTransferencias.lte('tra_data', endStr);
+        queryPagamentos = queryPagamentos.gte('pag_data', startStr);
+        queryPagamentos = queryPagamentos.lte('pag_data', endStr);
+      }
 
-      // Other filters
-      if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
-      if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
+      // Apply Account Filter
+      if (filterAccount !== 'all') {
+        queryLancamentos = queryLancamentos.eq('lan_conta', filterAccount);
+        queryTransferencias = queryTransferencias.or(`tra_conta_origem.eq.${filterAccount},tra_conta_destino.eq.${filterAccount}`);
+        queryPagamentos = queryPagamentos.or(`pag_conta_origem.eq.${filterAccount},pag_conta_destino.eq.${filterAccount}`);
+      }
+
+      // Apply Category Filter (only for common lancamentos)
+      if (filterCategory !== 'all') {
+        queryLancamentos = queryLancamentos.eq('lan_categoria', filterCategory);
+      } else {
+        // Exclude system categories from common lancamentos by default
+        queryLancamentos = queryLancamentos.not('categorias.cat_tipo', 'eq', 'sistema');
+      }
       
-      // Corrected: Filter by lan_valor sign for 'receita' and 'despesa'
+      // Apply Type Filter (receita/despesa for common, or specific for transfers/payments)
       if (filterType === 'receita') {
-        query = query.gt('lan_valor', 0);
+        queryLancamentos = queryLancamentos.gt('lan_valor', 0);
+        queryTransferencias = queryTransferencias.eq('tra_id', 'null'); // Exclude transfers
+        queryPagamentos = queryPagamentos.eq('pag_id', 'null'); // Exclude payments
       } else if (filterType === 'despesa') {
-        query = query.lt('lan_valor', 0);
+        queryLancamentos = queryLancamentos.lt('lan_valor', 0);
+        queryTransferencias = queryTransferencias.eq('tra_id', 'null'); // Exclude transfers
+        queryPagamentos = queryPagamentos.eq('pag_id', 'null'); // Exclude payments
+      } else if (filterType === 'transferencia') {
+        queryLancamentos = queryLancamentos.eq('lan_id', 'null'); // Exclude common
+        queryPagamentos = queryPagamentos.eq('pag_id', 'null'); // Exclude payments
+      } else if (filterType === 'pagamento') {
+        queryLancamentos = queryLancamentos.eq('lan_id', 'null'); // Exclude common
+        queryTransferencias = queryTransferencias.eq('tra_id', 'null'); // Exclude transfers
       }
 
-      const { data, error } = await query;
-      if (error) {
-        console.error("[fetchLancamentos] Error fetching lancamentos:", error);
-        throw error;
-      }
-      console.log("[fetchLancamentos] Data received:", data); // Log the received data
-      setLancamentos(data || []);
+      const [lancamentosData, transferenciasData, pagamentosData] = await Promise.all([
+        queryLancamentos,
+        queryTransferencias,
+        queryPagamentos
+      ]);
+
+      if (lancamentosData.error) throw lancamentosData.error;
+      if (transferenciasData.error) throw transferenciasData.error;
+      if (pagamentosData.error) throw pagamentosData.error;
+
+      const allOperations: any[] = [];
+
+      lancamentosData.data?.forEach((item: any) => {
+        allOperations.push({ ...item, operationType: 'lancamento' });
+      });
+
+      transferenciasData.data?.forEach((item: any) => {
+        allOperations.push({ ...item, operationType: 'transferencia' });
+      });
+
+      pagamentosData.data?.forEach((item: any) => {
+        allOperations.push({ ...item, operationType: 'pagamento' });
+      });
+
+      // Sort all operations by date
+      allOperations.sort((a, b) => {
+        const dateA = new Date(a.lan_data || a.tra_data || a.pag_data);
+        const dateB = new Date(b.lan_data || b.tra_data || b.pag_data);
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setLancamentos(allOperations || []);
     } catch (error) {
       console.error(error);
     } finally {
@@ -157,7 +239,7 @@ const Lancamentos = () => {
     }
   };
 
-  const handleApplyFilters = () => fetchLancamentos(groupId);
+  const handleApplyFilters = () => fetchAllOperations(groupId);
 
   const handleClearFilters = () => {
     setFilterType('all');
@@ -169,36 +251,89 @@ const Lancamentos = () => {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteTarget) return;
+    setLoading(true);
     try {
-      const { error } = await supabase.from('lancamentos').delete().eq('lan_id', deleteId);
-      if (error) throw error;
-      showSuccess('Lançamento excluído.');
-      setDeleteId(null);
-      fetchLancamentos(groupId);
+      if (deleteTarget.type === 'lancamento') {
+        const { error } = await supabase.from('lancamentos').delete().eq('lan_id', deleteTarget.id);
+        if (error) throw error;
+      } else if (deleteTarget.type === 'transferencia') {
+        // Delete transfer and its associated lancamentos
+        const { data: transferData, error: fetchError } = await supabase
+          .from('transferencias')
+          .select('tra_lancamento_origem, tra_lancamento_destino')
+          .eq('tra_id', deleteTarget.id)
+          .single();
+        if (fetchError) throw fetchError;
+
+        if (transferData) {
+          await supabase.from('lancamentos').delete().eq('lan_id', transferData.tra_lancamento_origem);
+          await supabase.from('lancamentos').delete().eq('lan_id', transferData.tra_lancamento_destino);
+        }
+        const { error } = await supabase.from('transferencias').delete().eq('tra_id', deleteTarget.id);
+        if (error) throw error;
+      } else if (deleteTarget.type === 'pagamento') {
+        // Delete payment and its associated lancamentos
+        const { data: paymentData, error: fetchError } = await supabase
+          .from('pagamentos_fatura')
+          .select('pag_lancamento_origem, pag_lancamento_destino')
+          .eq('pag_id', deleteTarget.id)
+          .single();
+        if (fetchError) throw fetchError;
+
+        if (paymentData) {
+          await supabase.from('lancamentos').delete().eq('lan_id', paymentData.pag_lancamento_origem);
+          await supabase.from('lancamentos').delete().eq('lan_id', paymentData.pag_lancamento_destino);
+        }
+        const { error } = await supabase.from('pagamentos_fatura').delete().eq('pag_id', deleteTarget.id);
+        if (error) throw error;
+      }
+      showSuccess('Operação excluída.');
+      setDeleteTarget(null);
+      setDeleteConfirmOpen(false);
+      fetchAllOperations(groupId);
     } catch (error) {
-      showError('Erro ao excluir.');
+      showError('Erro ao excluir operação.');
+      setLoading(false);
     }
   };
 
   const handleNewLancamentoClick = () => {
     setEditingLancamento(null);
-    setModalOpen(true);
+    setCommonLancamentoModalOpen(true);
   };
 
-  const handleEditLancamento = (item: any) => {
-    setEditingLancamento(item);
-    setModalOpen(true);
+  const handleNewTransferenciaClick = () => {
+    setEditingTransferencia(null);
+    setTransferenciaModalOpen(true);
   };
 
-  const handleDeleteLancamento = (id: string) => {
-    setDeleteId(id);
+  const handleEditOperation = (item: any) => {
+    if (item.operationType === 'lancamento') {
+      setEditingLancamento(item);
+      setCommonLancamentoModalOpen(true);
+    } else if (item.operationType === 'transferencia') {
+      setEditingTransferencia(item);
+      setTransferenciaModalOpen(true);
+    } else if (item.operationType === 'pagamento') {
+      setEditingPagamentoFatura(item);
+      setPagamentoFaturaModalOpen(true);
+    }
   };
 
-  const filteredList = lancamentos.filter(l => 
-    l.lan_descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    l.contas?.con_nome?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleDeleteOperation = (id: string, type: 'lancamento' | 'transferencia' | 'pagamento') => {
+    setDeleteTarget({ id, type });
+    setDeleteConfirmOpen(true);
+  };
+
+  const filteredList = lancamentos.filter(op => {
+    const description = op.lan_descricao || op.tra_descricao || `Pagamento de Fatura ${op.pag_valor}`;
+    const accountName = op.contas?.con_nome || op.conta_origem?.con_nome || op.conta_destino?.con_nome;
+    return (
+      description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      accountName?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -208,7 +343,10 @@ const Lancamentos = () => {
     <MainLayout title="Lançamentos" hideGlobalSearch>
       <div className="max-w-7xl mx-auto flex flex-col gap-6 pb-10">
         
-        <LancamentosHeader onNewLancamentoClick={handleNewLancamentoClick} />
+        <LancamentosHeader 
+          onNewLancamentoClick={handleNewLancamentoClick} 
+          onNewTransferenciaClick={handleNewTransferenciaClick}
+        />
 
         <LancamentosFilters
           showFilters={showFilters}
@@ -230,7 +368,7 @@ const Lancamentos = () => {
             customRange={customRange}
             setCustomRange={(range) => { setCustomRange(range); }}
             accounts={accounts}
-            categories={categories}
+            categories={categories.filter(c => c.cat_tipo !== 'sistema')} // Only show common categories in filter
             onApplyFilters={handleApplyFilters}
             onClearFilters={handleClearFilters}
           />
@@ -239,29 +377,53 @@ const Lancamentos = () => {
         <LancamentosTable
           lancamentos={filteredList}
           loading={loading}
-          onEditLancamento={handleEditLancamento}
-          onDeleteLancamento={handleDeleteLancamento}
+          onEditOperation={handleEditOperation}
+          onDeleteOperation={handleDeleteOperation}
           formatCurrency={formatCurrency}
         />
       </div>
 
-      <LancamentoModal 
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        onSuccess={() => fetchLancamentos(groupId)}
+      {/* Common Lancamento Modal */}
+      <CommonLancamentoModal 
+        open={commonLancamentoModalOpen}
+        onOpenChange={setCommonLancamentoModalOpen}
+        onSuccess={() => fetchAllOperations(groupId)}
         lancamento={editingLancamento}
-        categories={categories}
+        categories={categories.filter(c => c.cat_tipo !== 'sistema')} // Only pass common categories
         accounts={accounts}
         userId={user?.id || ''}
         grupoId={groupId}
       />
 
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      {/* Transferencia Modal */}
+      <TransferenciaModal
+        open={transferenciaModalOpen}
+        onOpenChange={setTransferenciaModalOpen}
+        onSuccess={() => fetchAllOperations(groupId)}
+        transferencia={editingTransferencia}
+        accounts={accounts}
+        grupoId={groupId}
+        systemCategories={systemCategories}
+      />
+
+      {/* Pagamento Fatura Modal */}
+      <PagamentoFaturaModal
+        open={pagamentoFaturaModalOpen}
+        onOpenChange={setPagamentoFaturaModalOpen}
+        onSuccess={() => fetchAllOperations(groupId)}
+        pagamento={editingPagamentoFatura}
+        accounts={accounts}
+        creditCardAccounts={creditCardAccounts}
+        grupoId={groupId}
+        systemCategories={systemCategories}
+      />
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-white rounded-3xl border">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-black text-[#141118]">Excluir Lançamento?</AlertDialogTitle>
+            <AlertDialogTitle className="font-black text-[#141118]">Excluir {deleteTarget?.type === 'lancamento' ? 'Lançamento' : deleteTarget?.type === 'transferencia' ? 'Transferência' : 'Pagamento'}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O lançamento será removido permanentemente do seu extrato.
+              Esta ação não pode ser desfeita. A operação será removida permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
