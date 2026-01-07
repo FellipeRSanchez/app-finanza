@@ -13,7 +13,7 @@ interface LancamentosTableProps {
   lancamentos: any[];
   loading: boolean;
   onEditOperation: (item: any) => void;
-  onDeleteOperation: (id: string, type: string) => void;
+  onDeleteOperation: (id: string, type: 'lancamento' | 'transferencia' | 'pagamento') => void;
   formatCurrency: (value: number) => string;
 }
 
@@ -37,10 +37,14 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({ lancamentos, loadin
             {loading ? Array(5).fill(0).map((_, i) => <TableRow key={i}><TableCell colSpan={7} className="h-16 animate-pulse" /></TableRow>) :
             lancamentos.length === 0 ? <TableRow><TableCell colSpan={7} className="h-64 text-center opacity-40 uppercase font-black text-xs">Nenhum lançamento</TableCell></TableRow> :
             lancamentos.map((l) => {
-              const isSystem = !!(l.lan_transferencia || l.lan_pagamento);
               const isIncome = l.lan_valor > 0;
-              const catName = l.lan_transferencia ? "Transferência" : (l.lan_pagamento ? "Pagamento Fatura" : (l.categorias?.cat_nome || "Sem Categoria"));
-              const Icon = l.lan_transferencia ? Repeat2 : (l.lan_pagamento ? CreditCard : (isIncome ? ArrowDownLeft : ArrowUpRight));
+              
+              // Force category identification for system legs
+              const isTransfer = !!l.lan_transferencia;
+              const isPayment = !!l.lan_pagamento;
+              
+              const catName = isTransfer ? "Transferência" : (isPayment ? "Pagamento de Fatura" : (l.categorias?.cat_nome || "Sem Categoria"));
+              const Icon = isTransfer ? Repeat2 : (isPayment ? CreditCard : (isIncome ? ArrowDownLeft : ArrowUpRight));
 
               return (
                 <TableRow key={l.lan_id} className="group hover:bg-background-light/30 transition-colors">
@@ -64,13 +68,13 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({ lancamentos, loadin
                     {isIncome ? "+" : ""}{formatCurrency(l.lan_valor)}
                   </TableCell>
                   <TableCell>
-                    <div className={cn("size-8 rounded-full flex items-center justify-center mx-auto", l.lan_transferencia ? "bg-blue-100 text-blue-600" : (l.lan_pagamento ? "bg-purple-100 text-purple-600" : (isIncome ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")))}>
+                    <div className={cn("size-8 rounded-full flex items-center justify-center mx-auto", isTransfer ? "bg-blue-100 text-blue-600" : (isPayment ? "bg-purple-100 text-purple-600" : (isIncome ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")))}>
                       <Icon className="w-4 h-4" />
                     </div>
                   </TableCell>
                   <TableCell className="pr-8 text-right opacity-0 group-hover:opacity-100">
                     <Button variant="ghost" size="icon" onClick={() => onEditOperation(l)} className="h-8 w-8 hover:bg-primary/10"><Edit2 className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDeleteOperation(l.lan_id, 'lancamento')} className="h-8 w-8 hover:bg-rose-100 text-rose-600"><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDeleteOperation(l.lan_id, isTransfer ? 'transferencia' : (isPayment ? 'pagamento' : 'lancamento'))} className="h-8 w-8 hover:bg-rose-100 text-rose-600"><Trash2 className="w-4 h-4" /></Button>
                   </TableCell>
                 </TableRow>
               );

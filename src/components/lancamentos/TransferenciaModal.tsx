@@ -205,43 +205,98 @@ const TransferenciaModal = ({
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Data</Label>
-            <Input type="date" value={formData.tra_data} onChange={e => setFormData({...formData, tra_data: e.target.value})} required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
+            <Input 
+              type="date" 
+              value={formData.tra_data} 
+              onChange={e => setFormData({...formData, tra_data: e.target.value})}
+              required
+              className="rounded-xl border-border-light bg-background-light/50 font-bold"
+            />
           </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Descrição (Opcional)</Label>
+            <Input 
+              value={formData.tra_descricao} 
+              onChange={e => setFormData({...formData, tra_descricao: e.target.value})}
+              placeholder="Ex: Transferência para poupança"
+              className="rounded-xl border-border-light bg-background-light/50 font-bold"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Valor</Label>
-            <Input type="number" step="0.01" value={formData.tra_valor} onChange={e => setFormData({...formData, tra_valor: e.target.value})} placeholder="0,00" required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
+            <Input 
+              type="number" 
+              step="0.01"
+              value={formData.tra_valor} 
+              onChange={e => setFormData({...formData, tra_valor: e.target.value})}
+              placeholder="0,00"
+              required
+              className="rounded-xl border-border-light bg-background-light/50 font-bold"
+            />
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Origem (Debita)</Label>
-              <Select value={formData.tra_conta_origem} onValueChange={val => setFormData({...formData, tra_conta_origem: val})}>
+              <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Origem</Label>
+              <Select 
+                value={formData.tra_conta_origem} 
+                onValueChange={val => setFormData({...formData, tra_conta_origem: val})}
+                required
+              >
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {accounts.map(acc => <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>)}
+                  {accounts.map(acc => (
+                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Destino (Credita)</Label>
-              <Select value={formData.tra_conta_destino} onValueChange={val => setFormData({...formData, tra_conta_destino: val})}>
+              <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Destino</Label>
+              <Select 
+                value={formData.tra_conta_destino} 
+                onValueChange={val => setFormData({...formData, tra_conta_destino: val})}
+                required
+              >
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {accounts.map(acc => <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>)}
+                  {accounts.map(acc => (
+                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
+
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-[#756189]">Observação</Label>
-            <Input value={formData.tra_descricao} onChange={e => setFormData({...formData, tra_descricao: e.target.value})} placeholder="Opcional..." className="rounded-xl border-border-light bg-background-light/50 font-bold" />
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Status da Transferência</Label>
+            <Select 
+              value={formData.tra_conciliado ? "true" : "false"} 
+              onValueChange={val => setFormData({...formData, tra_conciliado: val === "true"})}
+            >
+              <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg rounded-xl">
+                <SelectItem value="true">Confirmada</SelectItem>
+                <SelectItem value="false">Pendente</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
           <DialogFooter className="pt-4">
-            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg">
-              {loading ? 'Processando...' : 'Confirmar Transferência'}
+            <Button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg shadow-primary/25"
+            >
+              {loading ? 'Processando...' : transferencia ? 'Atualizar Transferência' : 'Criar Transferência'}
             </Button>
           </DialogFooter>
         </form>

@@ -82,8 +82,8 @@ const Lancamentos = () => {
       setCreditCardAccounts(aData.data?.filter((acc: any) => acc.con_tipo === 'cartao') || []);
 
       setSystemCategories({
-        transferenciaId: cData.data?.find((cat: any) => cat.cat_tipo === 'sistema' && cat.cat_nome.includes('Transferência'))?.cat_id || null,
-        pagamentoFaturaId: cData.data?.find((cat: any) => cat.cat_tipo === 'sistema' && cat.cat_nome.includes('Pagamento'))?.cat_id || null,
+        transferenciaId: cData.data?.find((cat: any) => cat.cat_nome === 'Transferência entre Contas' && cat.cat_tipo === 'sistema')?.cat_id || null,
+        pagamentoFaturaId: cData.data?.find((cat: any) => cat.cat_nome === 'Pagamento de Fatura' && cat.cat_tipo === 'sistema')?.cat_id || null,
       });
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
@@ -101,39 +101,41 @@ const Lancamentos = () => {
       if (filterPeriod === 'thisMonth') query = query.gte('lan_data', format(startOfMonth(now), 'yyyy-MM-dd')).lte('lan_data', format(endOfMonth(now), 'yyyy-MM-dd'));
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
+      
       if (filterType === 'receita') query = query.gt('lan_valor', 0);
-      if (filterType === 'despesa') query = query.lt('lan_valor', 0);
+      else if (filterType === 'despesa') query = query.lt('lan_valor', 0);
 
       const { data, error } = await query;
       if (error) throw error;
-      setLancamentos(data?.map(l => ({ ...l, operationType: 'lancamento' })) || []);
+      setLancamentos(data || []);
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   const handleEditOperation = async (item: any) => {
     if (item.lan_transferencia) {
-      const { data } = await supabase.from('transferencias').select('*').eq('tra_id', item.lan_transferencia).single();
-      setEditingTransferencia(data);
-      setTransferenciaModalOpen(true);
+      const { data, error } = await supabase.from('transferencias').select('*').eq('tra_id', item.lan_transferencia).single();
+      if (data) {
+        setEditingTransferencia(data);
+        setTransferenciaModalOpen(true);
+      } else {
+        showError('Não foi possível carregar a transferência.');
+      }
     } else if (item.lan_pagamento) {
-      const { data } = await supabase.from('pagamentos_fatura').select('*').eq('pag_id', item.lan_pagamento).single();
-      setEditingPagamentoFatura(data);
-      setPagamentoFaturaModalOpen(true);
+      const { data, error } = await supabase.from('pagamentos_fatura').select('*').eq('pag_id', item.lan_pagamento).single();
+      if (data) {
+        setEditingPagamentoFatura(data);
+        setPagamentoFaturaModalOpen(true);
+      } else {
+        showError('Não foi possível carregar o pagamento.');
+      }
     } else {
       setEditingLancamento(item);
       setCommonLancamentoModalOpen(true);
     }
   };
 
-  const handleDeleteOperation = (id: string, type: string) => {
-    const l = lancamentos.find(item => item.lan_id === id);
-    if (l?.lan_transferencia) {
-      setDeleteTarget({ id: l.lan_transferencia, type: 'transferencia' });
-    } else if (l?.lan_pagamento) {
-      setDeleteTarget({ id: l.lan_pagamento, type: 'pagamento' });
-    } else {
-      setDeleteTarget({ id, type: 'lancamento' });
-    }
+  const handleDeleteOperation = (id: string, type: 'lancamento' | 'transferencia' | 'pagamento') => {
+    setDeleteTarget({ id, type });
     setDeleteConfirmOpen(true);
   };
 
@@ -142,9 +144,17 @@ const Lancamentos = () => {
     setLoading(true);
     try {
       if (deleteTarget.type === 'transferencia') {
-        const { data } = await supabase.from('transferencias').select('*').eq('tra_id', deleteTarget.id).single();
-        if (data) await supabase.from('lancamentos').delete().in('lan_id', [data.tra_lancamento_origem, data.tra_lancamento_destino]);
-        await supabase.from('transferencias').delete().eq('tra_id', deleteTarget.id);
+        const { data } = await supabase.from('transferencias').select('tra_lancamento_origem, tra_lancamento_destino').eq('tra_id', deleteTarget.id).single();
+        if (data) {
+          await supabase.from('lancamentos').delete().in('lan_id', [data.tra_lancamento_origem, data.tra_lancamento_destino]);
+          await supabase.from('transferencias').delete().eq('tra_id', deleteTarget.id);
+        }
+      } else if (deleteTarget.type === 'pagamento') {
+        const { data } = await supabase.from('pagamentos_fatura').select('pag_lancamento_origem, pag_lancamento_destino').eq('pag_id', deleteTarget.id).single();
+        if (data) {
+          await supabase.from('lancamentos').delete().in('lan_id', [data.pag_lancamento_origem, data.pag_lancamento_destino]);
+          await supabase.from('pagamentos_fatura').delete().eq('pag_id', deleteTarget.id);
+        }
       } else {
         await supabase.from('lancamentos').delete().eq('lan_id', deleteTarget.id);
       }
@@ -166,7 +176,7 @@ const Lancamentos = () => {
       <PagamentoFaturaModal open={pagamentoFaturaModalOpen} onOpenChange={setPagamentoFaturaModalOpen} onSuccess={() => fetchLancamentos(groupId)} pagamento={editingPagamentoFatura} accounts={accounts} creditCardAccounts={creditCardAccounts} grupoId={groupId} systemCategories={systemCategories} />
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-white rounded-3xl border">
-          <AlertDialogHeader><AlertDialogTitle className="font-black">Excluir Operação?</AlertDialogTitle><AlertDialogDescription>Esta ação removerá o(s) lançamento(s) permanentemente.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle className="font-black text-[#141118]">Excluir Operação?</AlertDialogTitle><AlertDialogDescription>Esta ação removerá o(s) lançamento(s) permanentemente.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-rose-600 text-white rounded-xl">Excluir</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
