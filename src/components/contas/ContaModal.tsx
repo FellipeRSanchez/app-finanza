@@ -45,20 +45,22 @@ const ContaModal = ({
   });
 
   useEffect(() => {
-    if (conta) {
-      setFormData({
-        con_nome: conta.con_nome || '',
-        con_tipo: conta.con_tipo || 'banco',
-        con_limite: (conta.con_limite || 0).toString(),
-        con_banco: conta.con_banco || ''
-      });
-    } else {
-      setFormData({
-        con_nome: '',
-        con_tipo: 'banco',
-        con_limite: '0',
-        con_banco: ''
-      });
+    if (open) { // Only set form data if modal is open
+      if (conta) { // If editing an existing account
+        setFormData({
+          con_nome: conta.con_nome || '',
+          con_tipo: conta.con_tipo || 'banco',
+          con_limite: (conta.con_limite || 0).toString(), // Use con_limite for editing
+          con_banco: conta.con_banco || ''
+        });
+      } else { // If creating a new account
+        setFormData({
+          con_nome: '',
+          con_tipo: 'banco',
+          con_limite: '0',
+          con_banco: ''
+        });
+      }
     }
   }, [conta, open]);
 

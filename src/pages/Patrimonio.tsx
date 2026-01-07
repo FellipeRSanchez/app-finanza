@@ -123,6 +123,13 @@ const Patrimonio = () => {
     navigate(`/lancamentos?account=${accountId}`);
   };
 
+  const handleModalOpenChange = (newOpenState: boolean) => {
+    if (!newOpenState) { // If modal is closing
+      setEditingConta(null); // Clear editing state
+    }
+    setModalOpen(newOpenState);
+  };
+
   return (
     <MainLayout title="Minhas Contas">
       <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
@@ -245,7 +252,7 @@ const Patrimonio = () => {
 
       <ContaModal 
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={handleModalOpenChange}
         onSuccess={fetchContas}
         conta={editingConta}
         grupoId={groupId}
