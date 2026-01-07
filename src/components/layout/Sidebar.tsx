@@ -1,17 +1,16 @@
 "use client";
-
 import { Link, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  FileText,
-  Wallet,
-  CreditCard, // Adicionado para a nova navegação
-  BarChart3,
-  Settings,
-  LogOut,
-  UserCircle, // Usado para o ícone de perfil
-  Menu, // Para o botão de menu mobile, se necessário
-  Info, // Para o item de fechamento mensal
+import { 
+  LayoutDashboard, 
+  FileText, 
+  Wallet, 
+  CreditCard, 
+  BarChart3, 
+  Settings, 
+  LogOut, 
+  UserCircle, 
+  TrendingUp, 
+  Upload 
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -20,7 +19,9 @@ const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Transações', href: '/lancamentos', icon: FileText },
   { name: 'Contas', href: '/patrimonio', icon: Wallet },
-  { name: 'Cartões', href: '/cartoes', icon: CreditCard }, // Nova rota para cartões
+  { name: 'Cartões', href: '/cartoes', icon: CreditCard },
+  { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
+  { name: 'Importação', href: '/importacao-extratos', icon: Upload },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
 ];
 
@@ -30,7 +31,7 @@ const settingsNavigation = [
 
 const Sidebar = () => {
   const location = useLocation();
-  const { signOut, user } = useAuth(); // Obter o usuário para exibir o nome/email
+  const { signOut, user } = useAuth();
 
   return (
     <div className="w-72 bg-card-light dark:bg-[#1e1629] border-r border-border-light dark:border-[#2d2438] flex flex-col shrink-0 transition-all duration-300 z-20">
@@ -56,18 +57,27 @@ const Sidebar = () => {
               className={cn(
                 'flex items-center gap-4 px-4 py-3 rounded-xl transition-all group',
                 isActive
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  ? 'bg-primary-new text-white shadow-lg shadow-primary-new/20'
                   : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2d2438] hover:text-text-main-light dark:hover:text-text-main-dark'
               )}
             >
-              <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "group-hover:text-primary-new")} />
-              <span className={cn("text-sm", isActive ? "font-bold" : "font-medium")}>{item.name}</span>
+              <item.icon
+                className={cn(
+                  "w-5 h-5",
+                  isActive ? "text-white" : "group-hover:text-primary-new"
+                )}
+              />
+              <span className={cn("text-sm", isActive ? "font-bold" : "font-medium")}>
+                {item.name}
+              </span>
             </Link>
           );
         })}
 
         <div className="mt-4 pt-4 border-t border-border-light dark:border-[#2d2438]">
-          <p className="px-4 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">Configurações</p>
+          <p className="px-4 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">
+            Configurações
+          </p>
           {settingsNavigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -77,12 +87,19 @@ const Sidebar = () => {
                 className={cn(
                   'flex items-center gap-4 px-4 py-3 rounded-xl transition-all group',
                   isActive
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                    ? 'bg-primary-new text-white shadow-lg shadow-primary-new/20'
                     : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2d2438] hover:text-text-main-light dark:hover:text-text-main-dark'
                 )}
               >
-                <item.icon className={cn("w-5 h-5", isActive ? "text-white" : "group-hover:text-primary-new")} />
-                <span className={cn("text-sm", isActive ? "font-bold" : "font-medium")}>{item.name}</span>
+                <item.icon
+                  className={cn(
+                    "w-5 h-5",
+                    isActive ? "text-white" : "group-hover:text-primary-new"
+                  )}
+                />
+                <span className={cn("text-sm", isActive ? "font-bold" : "font-medium")}>
+                  {item.name}
+                </span>
               </Link>
             );
           })}
@@ -97,8 +114,12 @@ const Sidebar = () => {
             <UserCircle className="w-full h-full text-gray-400 dark:text-gray-600" />
           </div>
           <div className="flex flex-col overflow-hidden">
-            <h3 className="text-sm font-bold text-text-main-light dark:text-text-main-dark truncate">{user?.email || 'Usuário'}</h3>
-            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">Premium</p>
+            <h3 className="text-sm font-bold text-text-main-light dark:text-text-main-dark truncate">
+              {user?.email || 'Usuário'}
+            </h3>
+            <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">
+              Premium
+            </p>
           </div>
         </div>
         <button

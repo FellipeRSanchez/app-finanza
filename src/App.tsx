@@ -12,7 +12,9 @@ import Patrimonio from "./pages/Patrimonio";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
-import Cartoes from "./pages/Cartoes"; // Importando a nova página de Cartões
+import Cartoes from "./pages/Cartoes";
+import Investimentos from "./pages/Investimentos";
+import ImportacaoExtratos from "./pages/ImportacaoExtratos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,7 +32,9 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/lancamentos" element={<Lancamentos />} />
             <Route path="/patrimonio" element={<Patrimonio />} />
-            <Route path="/cartoes" element={<Cartoes />} /> {/* Nova rota para Cartões */}
+            <Route path="/cartoes" element={<Cartoes />} />
+            <Route path="/investimentos" element={<Investimentos />} />
+            <Route path="/importacao-extratos" element={<ImportacaoExtratos />} />
             <Route path="/fechamento" element={<Fechamento />} />
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
