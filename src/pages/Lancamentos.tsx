@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns'; // Added subMonths
+import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns';
 import LancamentoModal from '../components/lancamentos/LancamentoModal';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -129,7 +129,8 @@ const Lancamentos = () => {
       // Other filters
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
-      if (filterType !== 'all') query = query.filter('categorias.cat_tipo', 'eq', filterType); // Reverted to .filter for type filter
+      // Corrected: Using .eq directly on the nested column for type filter
+      if (filterType !== 'all') query = query.eq('categorias.cat_tipo', filterType);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -204,15 +205,15 @@ const Lancamentos = () => {
         {showFilters && (
           <LancamentosFilterBar
             filterType={filterType}
-            setFilterType={(value) => { setFilterType(value); }} // Apply immediately
+            setFilterType={(value) => { setFilterType(value); }}
             filterAccount={filterAccount}
-            setFilterAccount={(value) => { setFilterAccount(value); }} // Apply immediately
+            setFilterAccount={(value) => { setFilterAccount(value); }}
             filterCategory={filterCategory}
-            setFilterCategory={(value) => { setFilterCategory(value); }} // Apply immediately
+            setFilterCategory={(value) => { setFilterCategory(value); }}
             filterPeriod={filterPeriod}
-            setFilterPeriod={(value) => { setFilterPeriod(value); }} // Apply immediately
+            setFilterPeriod={(value) => { setFilterPeriod(value); }}
             customRange={customRange}
-            setCustomRange={(range) => { setCustomRange(range); }} // Apply immediately
+            setCustomRange={(range) => { setCustomRange(range); }}
             accounts={accounts}
             categories={categories}
             onApplyFilters={handleApplyFilters}
