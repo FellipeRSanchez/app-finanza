@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format, startOfMonth, endOfMonth, subDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns'; // Added subMonths
 import LancamentoModal from '../components/lancamentos/LancamentoModal';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -45,6 +45,12 @@ const Lancamentos = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('thisMonth');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
+
+  // Helper to get YYYY-MM-DD string from a Date object, ensuring local start of day
+  const getLocalYMD = (date: Date) => {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return format(d, 'yyyy-MM-dd');
+  };
 
   useEffect(() => {
     if (user) {
@@ -100,18 +106,18 @@ const Lancamentos = () => {
       let endStr = '';
 
       if (filterPeriod === 'thisMonth') {
-        startStr = format(startOfMonth(now), 'yyyy-MM-dd');
-        endStr = format(endOfMonth(now), 'yyyy-MM-dd');
+        startStr = getLocalYMD(startOfMonth(now));
+        endStr = getLocalYMD(endOfMonth(now));
       } else if (filterPeriod === 'lastMonth') {
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        startStr = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
-        endStr = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
+        const lastMonth = subMonths(now, 1);
+        startStr = getLocalYMD(startOfMonth(lastMonth));
+        endStr = getLocalYMD(endOfMonth(lastMonth));
       } else if (filterPeriod === 'last7') {
-        startStr = format(subDays(now, 7), 'yyyy-MM-dd');
-        endStr = format(now, 'yyyy-MM-dd');
+        startStr = getLocalYMD(subDays(now, 7));
+        endStr = getLocalYMD(now);
       } else if (filterPeriod === 'last30') {
-        startStr = format(subDays(now, 30), 'yyyy-MM-dd');
-        endStr = format(now, 'yyyy-MM-dd');
+        startStr = getLocalYMD(subDays(now, 30));
+        endStr = getLocalYMD(now);
       } else if (filterPeriod === 'custom' && customRange.start && customRange.end) {
         startStr = customRange.start;
         endStr = customRange.end;
@@ -123,7 +129,7 @@ const Lancamentos = () => {
       // Other filters
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
-      if (filterType !== 'all') query = query.filter('categorias.cat_tipo', 'eq', filterType);
+      if (filterType !== 'all') query = query.eq('categorias.cat_tipo', filterType); // Changed .filter to .eq for type filter
 
       const { data, error } = await query;
       if (error) throw error;
@@ -198,15 +204,15 @@ const Lancamentos = () => {
         {showFilters && (
           <LancamentosFilterBar
             filterType={filterType}
-            setFilterType={setFilterType}
+            setFilterType={(value) => { setFilterType(value); }} // Apply immediately
             filterAccount={filterAccount}
-            setFilterAccount={setFilterAccount}
+            setFilterAccount={(value) => { setFilterAccount(value); }} // Apply immediately
             filterCategory={filterCategory}
-            setFilterCategory={setFilterCategory}
+            setFilterCategory={(value) => { setFilterCategory(value); }} // Apply immediately
             filterPeriod={filterPeriod}
-            setFilterPeriod={setFilterPeriod}
+            setFilterPeriod={(value) => { setFilterPeriod(value); }} // Apply immediately
             customRange={customRange}
-            setCustomRange={setCustomRange}
+            setCustomRange={(range) => { setCustomRange(range); }} // Apply immediately
             accounts={accounts}
             categories={categories}
             onApplyFilters={handleApplyFilters}

@@ -45,7 +45,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
       <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase text-[#756189]">Período</Label>
-          <Select value={filterPeriod} onValueChange={setFilterPeriod}>
+          <Select value={filterPeriod} onValueChange={(value) => { setFilterPeriod(value); onApplyFilters(); }}>
             <SelectTrigger className="h-11 rounded-xl bg-background-light/50 border-border-light font-bold">
               <SelectValue />
             </SelectTrigger>
@@ -66,7 +66,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
               <Input 
                 type="date" 
                 value={customRange.start} 
-                onChange={e => setCustomRange({...customRange, start: e.target.value})}
+                onChange={e => { setCustomRange({...customRange, start: e.target.value}); onApplyFilters(); }}
                 className="rounded-xl h-11 bg-background-light/50"
               />
             </div>
@@ -75,7 +75,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
               <Input 
                 type="date" 
                 value={customRange.end} 
-                onChange={e => setCustomRange({...customRange, end: e.target.value})}
+                onChange={e => { setCustomRange({...customRange, end: e.target.value}); onApplyFilters(); }}
                 className="rounded-xl h-11 bg-background-light/50"
               />
             </div>
@@ -84,7 +84,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
 
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase text-[#756189]">Conta</Label>
-          <Select value={filterAccount} onValueChange={setFilterAccount}>
+          <Select value={filterAccount} onValueChange={(value) => { setFilterAccount(value); onApplyFilters(); }}>
             <SelectTrigger className="h-11 rounded-xl bg-background-light/50 border-border-light font-bold">
               <SelectValue />
             </SelectTrigger>
@@ -99,7 +99,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
 
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase text-[#756189]">Tipo</Label>
-          <Select value={filterType} onValueChange={setFilterType}>
+          <Select value={filterType} onValueChange={(value) => { setFilterType(value); onApplyFilters(); }}>
             <SelectTrigger className="h-11 rounded-xl bg-background-light/50 border-border-light font-bold">
               <SelectValue />
             </SelectTrigger>
@@ -113,7 +113,7 @@ const LancamentosFilterBar: React.FC<LancamentosFilterBarProps> = ({
 
         <div className="space-y-2">
           <Label className="text-[10px] font-black uppercase text-[#756189]">Categoria</Label>
-          <Select value={filterCategory} onValueChange={setFilterCategory}>
+          <Select value={filterCategory} onValueChange={(value) => { setFilterCategory(value); onApplyFilters(); }}>
             <SelectTrigger className="h-11 rounded-xl bg-background-light/50 border-border-light font-bold">
               <SelectValue />
             </SelectTrigger>
