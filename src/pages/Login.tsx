@@ -4,6 +4,7 @@ import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
+import { Wallet } from 'lucide-react';
 
 const Login = () => {
   return (
@@ -11,11 +12,19 @@ const Login = () => {
       <div className="w-full max-w-md">
         <Card className="bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
           <div className="p-6 bg-primary flex justify-center items-center">
-            <img 
-              src="/logo.png" 
-              alt="Logo Finanças" 
-              className="h-20 w-20 object-contain drop-shadow-lg"
-            />
+            <div className="relative">
+              <img 
+                src="/logo.png" 
+                alt="Logo Finanças" 
+                className="h-20 w-20 object-contain drop-shadow-lg"
+                onError={(e) => {
+                  console.error('Erro ao carregar logo:', e);
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <Wallet className="h-20 w-20 text-white drop-shadow-lg hidden" />
+            </div>
           </div>
           <CardContent className="p-8">
             <div className="text-center mb-8">
