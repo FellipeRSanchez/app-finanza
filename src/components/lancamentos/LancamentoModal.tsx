@@ -50,19 +50,21 @@ const LancamentoModal = ({
     lan_categoria: '',
     lan_conta: '',
     lan_conciliado: false,
-    cat_tipo: 'despesa'
+    cat_tipo: 'despesa' // This will be 'receita' or 'despesa' based on user selection
   });
 
   useEffect(() => {
     if (lancamento) {
+      // When editing, derive cat_tipo from lan_valor sign
+      const isIncome = lancamento.lan_valor > 0;
       setFormData({
         lan_data: lancamento.lan_data,
         lan_descricao: lancamento.lan_descricao || '',
-        lan_valor: Math.abs(lancamento.lan_valor).toString(), // Ensure positive for input
+        lan_valor: Math.abs(lancamento.lan_valor).toString(), // Always display positive in input
         lan_categoria: lancamento.lan_categoria || '',
         lan_conta: lancamento.lan_conta || '',
         lan_conciliado: lancamento.lan_conciliado || false,
-        cat_tipo: lancamento.categorias?.cat_tipo || 'despesa'
+        cat_tipo: isIncome ? 'receita' : 'despesa'
       });
     } else {
       setFormData({
@@ -72,7 +74,7 @@ const LancamentoModal = ({
         lan_categoria: '',
         lan_conta: '',
         lan_conciliado: false,
-        cat_tipo: 'despesa'
+        cat_tipo: 'despesa' // Default for new transactions
       });
     }
   }, [lancamento, open]);
@@ -83,6 +85,7 @@ const LancamentoModal = ({
 
     try {
       const valor = parseFloat(formData.lan_valor);
+      // Determine final value sign based on selected cat_tipo in the modal
       const finalValor = formData.cat_tipo === 'receita' ? Math.abs(valor) : -Math.abs(valor);
 
       const payload = {

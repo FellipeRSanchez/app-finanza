@@ -12,6 +12,7 @@ interface CategoryStats {
   category: string;
   amount: number;
   percentage: number;
+  type: 'receita' | 'despesa'; // Add type to stats
 }
 
 const Relatorios = () => {
@@ -47,7 +48,7 @@ const Relatorios = () => {
         .from('lancamentos')
         .select(`
           lan_valor,
-          categorias (cat_nome, cat_tipo)
+          categorias (cat_nome)
         `)
         .eq('lan_grupo', userData.usu_grupo)
         .gte('lan_data', startDate)
@@ -55,28 +56,32 @@ const Relatorios = () => {
 
       if (lError) throw lError;
 
-      const grouped: Record<string, number> = {};
+      const grouped: Record<string, { amount: number, type: 'receita' | 'despesa' }> = {};
       let totalIncome = 0;
       let totalExpenses = 0;
 
       lancamentos?.forEach((lan: any) => {
         const valor = Number(lan.lan_valor);
-        const type = lan.categorias?.cat_tipo;
+        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa'; // Determine type by lan_valor sign
         const name = lan.categorias?.cat_nome || 'Sem Categoria';
 
         if (type === 'receita') totalIncome += valor;
-        if (type === 'despesa') totalExpenses += valor;
+        if (type === 'despesa') totalExpenses += Math.abs(valor); // Sum absolute value for expenses
 
         if (type === (reportType === 'income' ? 'receita' : 'despesa')) {
-          grouped[name] = (grouped[name] || 0) + valor;
+          if (!grouped[name]) {
+            grouped[name] = { amount: 0, type: type };
+          }
+          grouped[name].amount += Math.abs(valor); // Sum absolute value for category breakdown
         }
       });
 
       const currentTotal = reportType === 'income' ? totalIncome : totalExpenses;
-      const statsArray = Object.entries(grouped).map(([category, amount]) => ({
+      const statsArray = Object.entries(grouped).map(([category, data]) => ({
         category,
-        amount,
-        percentage: currentTotal > 0 ? (amount / currentTotal) * 100 : 0
+        amount: data.amount,
+        percentage: currentTotal > 0 ? (data.amount / currentTotal) * 100 : 0,
+        type: data.type
       })).sort((a, b) => b.amount - a.amount);
 
       setStats(statsArray);
@@ -264,7 +269,7 @@ const Relatorios = () => {
                       <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
                         <div
                           className={`h-2 rounded-full ${
-                            reportType === 'expenses' ? 'bg-red-500' : 'bg-green-500'
+                            item.type === 'despesa' ? 'bg-red-500' : 'bg-green-500'
                           }`}
                           style={{ width: `${item.percentage}%` }}
                         ></div>

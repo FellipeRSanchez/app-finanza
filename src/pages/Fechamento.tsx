@@ -24,7 +24,7 @@ interface Fechamento {
 interface CategoryTotal {
   nome: string;
   valor: number;
-  tipo: string;
+  type: 'receita' | 'despesa'; // Changed 'tipo' to 'type' for consistency
 }
 
 const Fechamento = () => {
@@ -88,28 +88,30 @@ const Fechamento = () => {
         .from('lancamentos')
         .select(`
           lan_valor,
-          categorias (cat_nome, cat_tipo)
-        `)
+          categorias (cat_nome)
+        `) // Only need cat_nome, type is from lan_valor
         .eq('lan_grupo', grupoId)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate);
 
       if (lError) throw lError;
 
-      const totals: Record<string, { valor: number, tipo: string }> = {};
+      const totals: Record<string, { valor: number, type: 'receita' | 'despesa' }> = {};
       lancamentos?.forEach((lan: any) => {
-        const cat = lan.categorias;
-        const nome = cat?.cat_nome || 'Sem Categoria';
+        const valor = Number(lan.lan_valor);
+        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa'; // Determine type by lan_valor sign
+        const nome = lan.categorias?.cat_nome || 'Sem Categoria';
+
         if (!totals[nome]) {
-          totals[nome] = { valor: 0, tipo: cat?.cat_tipo || 'despesa' };
+          totals[nome] = { valor: 0, type: type };
         }
-        totals[nome].valor += Number(lan.lan_valor);
+        totals[nome].valor += Math.abs(valor); // Sum absolute value
       });
 
       const formattedTotals = Object.entries(totals).map(([nome, data]) => ({
         nome,
         valor: data.valor,
-        tipo: data.tipo
+        type: data.type
       })).sort((a, b) => b.valor - a.valor);
 
       setCategoryTotals(formattedTotals);
@@ -229,8 +231,8 @@ const Fechamento = () => {
     setSelectedYear(newYear);
   };
 
-  const totalReceitas = categoryTotals.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
-  const totalDespesas = categoryTotals.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + t.valor, 0);
+  const totalReceitas = categoryTotals.filter(t => t.type === 'receita').reduce((sum, t) => sum + t.valor, 0);
+  const totalDespesas = categoryTotals.filter(t => t.type === 'despesa').reduce((sum, t) => sum + t.valor, 0);
   const resultado = totalReceitas - totalDespesas;
 
   const formatCurrency = (value: number) => {
@@ -332,9 +334,9 @@ const Fechamento = () => {
                   <div key={index} className="flex items-center gap-4 px-6 py-4 hover:bg-background-light dark:hover:bg-white/5 transition-colors border-b border-border-light dark:border-white/5 last:border-0">
                     <div className={cn(
                       "size-10 rounded-full flex items-center justify-center shrink-0",
-                      item.tipo === 'receita' ? "bg-emerald-100 text-emerald-600" : "bg-orange-100 text-orange-600"
+                      item.type === 'receita' ? "bg-emerald-100 text-emerald-600" : "bg-orange-100 text-orange-600"
                     )}>
-                      {item.tipo === 'receita' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                      {item.type === 'receita' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                     </div>
                     <div className="flex flex-col flex-1 gap-1">
                       <div className="flex justify-between items-center">
@@ -343,8 +345,8 @@ const Fechamento = () => {
                       </div>
                       <div className="w-full bg-background-light dark:bg-white/10 rounded-full h-1.5 mt-1">
                         <div 
-                          className={cn("h-1.5 rounded-full", item.tipo === 'receita' ? "bg-emerald-500" : "bg-orange-500")} 
-                          style={{ width: `${Math.min((item.valor / (item.tipo === 'receita' ? totalReceitas : totalDespesas)) * 100, 100)}%` }}
+                          className={cn("h-1.5 rounded-full", item.type === 'receita' ? "bg-emerald-500" : "bg-orange-500")} 
+                          style={{ width: `${Math.min((item.valor / (item.type === 'receita' ? totalReceitas : totalDespesas)) * 100, 100)}%` }}
                         ></div>
                       </div>
                     </div>
@@ -361,7 +363,7 @@ const Fechamento = () => {
               </CardHeader>
               <CardContent className="p-4 flex-1">
                 <Textarea
-                  placeholder="Notas sobre o mês..."
+                  placeholder="Notas sobre o mês (ex: Recebi 13º salário, Gasto extra com manutenção do carro)..."
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   disabled={fechamento?.fem_fechado || saving}
