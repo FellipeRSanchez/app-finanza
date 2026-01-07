@@ -5,11 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowUpRight, ArrowDownRight, DollarSign, Calendar, Eye, TrendingUp, TrendingDown, PiggyBank, Plus, Wallet } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Calendar, Eye, TrendingUp, TrendingDown, PiggyBank, Plus, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface DashboardStats {
   saldoConsolidado: number;
