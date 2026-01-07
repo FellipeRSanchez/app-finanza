@@ -127,12 +127,12 @@ const CommonLancamentoModal = ({
     }
   };
 
-  // Improved filtering: Ensure we only show common categories of the selected type
+  // Improved filtering: Case-insensitive comparison to handle DB data variations
   const filteredCategories = categories.filter(c => 
-    c.cat_tipo === formData.cat_tipo && 
-    c.cat_tipo !== 'sistema' &&
-    c.cat_nome !== 'Transferência entre Contas' &&
-    c.cat_nome !== 'Pagamento de Fatura'
+    c.cat_tipo?.toLowerCase() === formData.cat_tipo && 
+    c.cat_tipo?.toLowerCase() !== 'sistema' &&
+    c.cat_nome?.toLowerCase() !== 'transferência entre contas' &&
+    c.cat_nome?.toLowerCase() !== 'pagamento de fatura'
   );
 
   return (
@@ -215,20 +215,21 @@ const CommonLancamentoModal = ({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Categoria</Label>
-              <Select 
-                value={formData.lan_categoria} 
-                onValueChange={val => setFormData({...formData, lan_categoria: val})}
-              >
-                <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {filteredCategories.map(cat => (
-                    <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[ garantir que as categorias comuns apareçam.">
+                <Select 
+                  value={formData.lan_categoria} 
+                  onValueChange={val => setFormData({...formData, lan_categoria: val})}
+                >
+                  <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg rounded-xl">
+                    {filteredCategories.map(cat => (
+                      <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -236,7 +237,7 @@ const CommonLancamentoModal = ({
             <Label className="text-[10px] font-black uppercase text-[#756189]">Status do Lançamento</Label>
             <Select 
               value={formData.lan_conciliado ? "true" : "false"} 
-              onValueChange={val => setFormData({...formData, lan_conciliado: val === "true"})}
+              onValueChange={val => setFormData({...formData, lan_concaliado: val === "true"})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                 <SelectValue />
