@@ -7,10 +7,11 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Lock, Unlock, CheckCircle, CalendarDays, Edit } from 'lucide-react'; // Adicionado Edit
-import { format } from 'date-fns';
+import { Lock, Unlock, CheckCircle, CalendarDays, Edit, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { showSuccess, showError } from '@/utils/toast';
 
 interface Fechamento {
   fem_id: string;
@@ -20,10 +21,17 @@ interface Fechamento {
   fem_fechado: boolean;
 }
 
+interface CategoryTotal {
+  nome: string;
+  valor: number;
+  tipo: string;
+}
+
 const Fechamento = () => {
   const { user } = useAuth();
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
   const [observacoes, setObservacoes] = useState('');
+  const [categoryTotals, setCategoryTotals] = useState<CategoryTotal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -38,11 +46,11 @@ const Fechamento = () => {
 
   useEffect(() => {
     if (user) {
-      fetchFechamento();
+      fetchData();
     }
   }, [user, selectedMonth, selectedYear]);
 
-  const fetchFechamento = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
       const { data: userData } = await supabase
@@ -53,27 +61,61 @@ const Fechamento = () => {
 
       if (!userData?.usu_grupo) return;
 
-      const { data, error } = await supabase
+      const grupoId = userData.usu_grupo;
+
+      // 1. Fetch Fechamento Status
+      const { data: fechamentoData } = await supabase
         .from('fechamentos_mensais')
         .select('*')
-        .eq('fem_grupo', userData.usu_grupo)
+        .eq('fem_grupo', grupoId)
         .eq('fem_mes', selectedMonth)
         .eq('fem_ano', selectedYear)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-        throw error;
-      }
-
-      if (data) {
-        setFechamento(data);
-        setObservacoes(data.fem_observacoes || '');
+      if (fechamentoData) {
+        setFechamento(fechamentoData);
+        setObservacoes(fechamentoData.fem_observacoes || '');
       } else {
         setFechamento(null);
         setObservacoes('');
       }
+
+      // 2. Fetch Category Breakdown for the month
+      const startDate = format(new Date(selectedYear, selectedMonth - 1, 1), 'yyyy-MM-dd');
+      const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth - 1, 1)), 'yyyy-MM-dd');
+
+      const { data: lancamentos, error: lError } = await supabase
+        .from('lancamentos')
+        .select(`
+          lan_valor,
+          categorias (cat_nome, cat_tipo)
+        `)
+        .eq('lan_grupo', grupoId)
+        .gte('lan_data', startDate)
+        .lte('lan_data', endDate);
+
+      if (lError) throw lError;
+
+      const totals: Record<string, { valor: number, tipo: string }> = {};
+      lancamentos?.forEach((lan: any) => {
+        const cat = lan.categorias;
+        const nome = cat?.cat_nome || 'Sem Categoria';
+        if (!totals[nome]) {
+          totals[nome] = { valor: 0, tipo: cat?.cat_tipo || 'despesa' };
+        }
+        totals[nome].valor += Number(lan.lan_valor);
+      });
+
+      const formattedTotals = Object.entries(totals).map(([nome, data]) => ({
+        nome,
+        valor: data.valor,
+        tipo: data.tipo
+      })).sort((a, b) => b.valor - a.valor);
+
+      setCategoryTotals(formattedTotals);
+
     } catch (error) {
-      console.error('Error fetching fechamento:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -110,12 +152,12 @@ const Fechamento = () => {
           .single();
 
         if (error) throw error;
-        if (data) {
-          setFechamento(data);
-        }
+        if (data) setFechamento(data);
       }
+      showSuccess('Observações salvas com sucesso!');
     } catch (error) {
       console.error('Error saving observacoes:', error);
+      showError('Erro ao salvar observações.');
     } finally {
       setSaving(false);
     }
@@ -142,7 +184,6 @@ const Fechamento = () => {
         if (error) throw error;
         setFechamento({ ...fechamento, fem_fechado: newFechadoStatus });
       } else {
-        // If no record exists, create one and set it to closed
         const { data, error } = await supabase
           .from('fechamentos_mensais')
           .insert({
@@ -156,12 +197,12 @@ const Fechamento = () => {
           .single();
 
         if (error) throw error;
-        if (data) {
-          setFechamento(data);
-        }
+        if (data) setFechamento(data);
       }
+      showSuccess(newFechadoStatus ? 'Mês fechado com sucesso!' : 'Mês reaberto com sucesso!');
     } catch (error) {
       console.error('Error toggling month status:', error);
+      showError('Erro ao alterar status do mês.');
     } finally {
       setSaving(false);
     }
@@ -188,6 +229,17 @@ const Fechamento = () => {
     setSelectedYear(newYear);
   };
 
+  const totalReceitas = categoryTotals.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + t.valor, 0);
+  const totalDespesas = categoryTotals.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + t.valor, 0);
+  const resultado = totalReceitas - totalDespesas;
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
   if (loading) {
     return (
       <MainLayout title="Fechamento Mensal">
@@ -198,11 +250,9 @@ const Fechamento = () => {
     );
   }
 
-  const isCurrentMonth = selectedMonth === (now.getMonth() + 1) && selectedYear === now.getFullYear();
-
   return (
     <MainLayout title="Fechamento Mensal">
-      <div className="max-w-[1200px] mx-auto flex flex-col gap-8 p-4 md:p-8">
+      <div className="max-w-[1200px] mx-auto flex flex-col gap-8">
         {/* Header & Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -214,147 +264,143 @@ const Fechamento = () => {
                   ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800'
                   : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800'
               )}>
-                {fechamento?.fem_fechado ? (
-                  <>
-                    <Lock className="w-3 h-3" />
-                    Mês Fechado
-                  </>
-                ) : (
-                  <>
-                    <Unlock className="w-3 h-3" />
-                    Mês Aberto
-                  </>
-                )}
+                {fechamento?.fem_fechado ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+                {fechamento?.fem_fechado ? 'Mês Fechado' : 'Mês Aberto'}
               </span>
             </div>
             <p className="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal">
               Confira os lançamentos e consolide o resultado antes de fechar.
             </p>
           </div>
-          {/* Month Selector */}
           <div className="flex items-center bg-background-light dark:bg-white/5 rounded-full p-1 border border-transparent dark:border-white/10">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleMonthChange('prev')}
-              className="size-8 flex items-center justify-center rounded-full hover:bg-card-light dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 transition-colors"
-            >
+            <Button variant="ghost" size="icon" onClick={() => handleMonthChange('prev')} className="size-8 rounded-full">
               <CalendarDays className="w-5 h-5 rotate-90" />
             </Button>
             <div className="px-4 text-sm font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-primary-new" />
               {monthNames[selectedMonth - 1]} {selectedYear}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => handleMonthChange('next')}
-              className="size-8 flex items-center justify-center rounded-full hover:bg-card-light dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 transition-colors"
-            >
+            <Button variant="ghost" size="icon" onClick={() => handleMonthChange('next')} className="size-8 rounded-full">
               <CalendarDays className="w-5 h-5 -rotate-90" />
             </Button>
           </div>
         </div>
 
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="p-6 bg-card-light dark:bg-[#1e1429] border-border-light dark:border-white/10 shadow-soft relative overflow-hidden group">
+            <div className="flex items-center justify-between z-10 relative">
+              <p className="text-text-secondary-light dark:text-gray-400 text-sm font-medium">Receitas Totais</p>
+              <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg text-green-700 dark:text-green-400">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-text-main-light dark:text-white text-3xl font-bold tracking-tight mt-4 z-10 relative">{formatCurrency(totalReceitas)}</p>
+          </Card>
+          <Card className="p-6 bg-card-light dark:bg-[#1e1429] border-border-light dark:border-white/10 shadow-soft relative overflow-hidden group">
+            <div className="flex items-center justify-between z-10 relative">
+              <p className="text-text-secondary-light dark:text-gray-400 text-sm font-medium">Despesas Totais</p>
+              <div className="bg-red-100 dark:bg-red-900/20 p-2 rounded-lg text-red-700 dark:text-red-400">
+                <TrendingDown className="w-5 h-5" />
+              </div>
+            </div>
+            <p className="text-text-main-light dark:text-white text-3xl font-bold tracking-tight mt-4 z-10 relative">{formatCurrency(totalDespesas)}</p>
+          </Card>
+          <Card className="p-6 bg-card-light dark:bg-[#1e1429] border-border-light dark:border-white/10 shadow-soft relative overflow-hidden group">
+            <div className="flex items-center justify-between z-10 relative">
+              <p className="text-text-secondary-light dark:text-gray-400 text-sm font-medium">Resultado</p>
+              <div className="bg-primary/10 dark:bg-primary/20 p-2 rounded-lg text-primary-new">
+                <Wallet className="w-5 h-5" />
+              </div>
+            </div>
+            <p className={cn("text-3xl font-bold tracking-tight mt-4 z-10 relative", resultado >= 0 ? "text-emerald-600" : "text-red-600")}>
+              {formatCurrency(resultado)}
+            </p>
+          </Card>
+        </div>
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          {/* Details Table (Placeholder for now, as per original design) */}
-          <div className="lg:col-span-2 flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft overflow-hidden">
+          <Card className="lg:col-span-2 flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-light dark:border-white/10">
               <h3 className="text-text-main-light dark:text-text-main-dark text-lg font-bold">Detalhamento por Categoria</h3>
-              <Button variant="link" className="text-primary-new text-sm font-bold hover:underline">Ver tudo</Button>
             </div>
-            <div className="p-6 text-text-secondary-light dark:text-text-secondary-dark text-center">
-              <p>Dados de detalhamento por categoria virão aqui.</p>
-              <p className="text-sm mt-2">Este módulo está em desenvolvimento.</p>
+            <div className="flex flex-col">
+              {categoryTotals.length === 0 ? (
+                <div className="p-12 text-center text-text-secondary-light">Nenhum lançamento neste mês.</div>
+              ) : (
+                categoryTotals.map((item, index) => (
+                  <div key={index} className="flex items-center gap-4 px-6 py-4 hover:bg-background-light dark:hover:bg-white/5 transition-colors border-b border-border-light dark:border-white/5 last:border-0">
+                    <div className={cn(
+                      "size-10 rounded-full flex items-center justify-center shrink-0",
+                      item.tipo === 'receita' ? "bg-emerald-100 text-emerald-600" : "bg-orange-100 text-orange-600"
+                    )}>
+                      {item.tipo === 'receita' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                    </div>
+                    <div className="flex flex-col flex-1 gap-1">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-bold text-text-main-light dark:text-white">{item.nome}</p>
+                        <p className="text-sm font-bold text-text-main-light dark:text-white">{formatCurrency(item.valor)}</p>
+                      </div>
+                      <div className="w-full bg-background-light dark:bg-white/10 rounded-full h-1.5 mt-1">
+                        <div 
+                          className={cn("h-1.5 rounded-full", item.tipo === 'receita' ? "bg-emerald-500" : "bg-orange-500")} 
+                          style={{ width: `${Math.min((item.valor / (item.tipo === 'receita' ? totalReceitas : totalDespesas)) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          </div>
+          </Card>
 
-          {/* Notes & Close Action */}
           <div className="flex flex-col gap-6">
-            {/* Notes Card */}
             <Card className="flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft overflow-hidden h-full">
               <CardHeader className="flex items-center justify-between px-6 py-4 border-b border-border-light dark:border-white/10">
                 <CardTitle className="text-text-main-light dark:text-text-main-dark text-lg font-bold">Observações</CardTitle>
-                <Button variant="ghost" size="icon" className="text-gray-400 hover:bg-background-light dark:hover:bg-[#2d2438]">
-                  <Edit className="w-5 h-5" />
-                </Button>
               </CardHeader>
               <CardContent className="p-4 flex-1">
                 <Textarea
-                  placeholder="Adicione notas sobre o mês (ex: Recebi 13º salário, Gasto extra com manutenção do carro)..."
+                  placeholder="Notas sobre o mês..."
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   disabled={fechamento?.fem_fechado || saving}
                   rows={6}
-                  className="w-full h-full min-h-[160px] p-4 rounded-lg bg-background-light dark:bg-white/5 border border-transparent focus-visible:border-primary-new focus-visible:ring-1 focus-visible:ring-primary-new text-sm text-text-main-light dark:text-text-main-dark resize-none placeholder-text-secondary-light dark:placeholder-text-secondary-dark transition-all"
+                  className="w-full min-h-[160px] p-4 bg-background-light dark:bg-white/5 border-none focus-visible:ring-1 focus-visible:ring-primary-new"
                 />
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    onClick={handleSaveObservacoes}
-                    disabled={fechamento?.fem_fechado || saving}
-                    className="bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
-                  >
-                    Salvar Observações
-                  </Button>
-                </div>
+                <Button 
+                  onClick={handleSaveObservacoes} 
+                  disabled={fechamento?.fem_fechado || saving}
+                  className="mt-4 w-full bg-primary-new hover:bg-primary-new/90 text-white"
+                >
+                  Salvar Observações
+                </Button>
               </CardContent>
             </Card>
 
-            {/* Close Action Card */}
-            <Card className="flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft p-6 gap-4">
+            <Card className="p-6 bg-card-light dark:bg-[#1e1429] border border-border-light dark:border-white/10 shadow-soft gap-4 flex flex-col">
               <div>
                 <CardTitle className="text-text-main-light dark:text-text-main-dark text-lg font-bold mb-1">
                   {fechamento?.fem_fechado ? 'Reabrir Mês' : 'Fechar Mês'}
                 </CardTitle>
-                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                  Ao {fechamento?.fem_fechado ? 'reabrir' : 'fechar'}, os lançamentos {fechamento?.fem_fechado ? 'poderão' : 'não poderão'} ser mais editados.
+                <p className="text-sm text-text-secondary-light dark:text-gray-400">
+                  {fechamento?.fem_fechado ? 'Clique para permitir novas edições.' : 'Ao fechar, o mês se torna imutável.'}
                 </p>
               </div>
               <Button
                 onClick={handleToggleFecharMes}
                 disabled={saving}
                 className={cn(
-                  "group w-full flex items-center justify-center gap-3 rounded-xl h-12 text-base font-bold transition-all shadow-lg",
-                  fechamento?.fem_fechado
-                    ? 'bg-green-600 hover:bg-green-700 shadow-green-600/30 text-white'
-                    : 'bg-red-600 hover:bg-red-700 shadow-red-600/30 text-white'
+                  "w-full flex items-center justify-center gap-3 rounded-xl h-12 text-base font-bold transition-all shadow-lg",
+                  fechamento?.fem_fechado ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
                 )}
               >
-                {fechamento?.fem_fechado ? (
-                  <>
-                    <Unlock className="w-5 h-5" />
-                    Reabrir Mês
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-5 h-5" />
-                    Concluir e Fechar
-                  </>
-                )}
+                {fechamento?.fem_fechado ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+                {fechamento?.fem_fechado ? 'Reabrir Mês' : 'Concluir e Fechar'}
               </Button>
             </Card>
           </div>
         </div>
-
-        {/* Info */}
-        {fechamento?.fem_fechado && (
-          <Card className="bg-yellow-50 border-yellow-200 dark:bg-yellow-900/10 dark:border-yellow-900">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 mt-0.5" />
-                <div>
-                  <p className="font-medium text-yellow-900 dark:text-yellow-200">
-                    Mês Fechado
-                  </p>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    Este mês está fechado. Você não pode criar, editar ou excluir lançamentos deste período.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </MainLayout>
   );
