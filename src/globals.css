@@ -7,7 +7,7 @@
     --background: 270 10% 97%; /* #f7f6f8 */
     --foreground: 270 15% 8%; /* #141118 */
 
-    --card: 0 0% 100%; /* #ffffff */
+    --card: 0 0% 100%;
     --card-foreground: 270 15% 8%;
 
     --popover: 0 0% 100%;
@@ -71,11 +71,11 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-display;
+    @apply bg-background text-foreground font-display antialiased;
   }
 }
 
-/* Custom scrollbar for better aesthetics */
+/* Custom scrollbar matching the design style */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

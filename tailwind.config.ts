@@ -19,8 +19,11 @@ export default {
     },
     extend: {
       colors: {
-        // Cores do Design "Finance App"
-        "primary": "#7311d4",
+        "primary": {
+          DEFAULT: "#7311d4",
+          dark: "#5a0ca8",
+          new: "#7311d4", // Para garantir uso interno
+        },
         "background-light": "#f7f6f8",
         "background-dark": "#191022",
         "card-light": "#ffffff",
@@ -29,8 +32,6 @@ export default {
         "text-main-dark": "#ffffff",
         "text-secondary-light": "#756189",
         "text-secondary-dark": "#a090b0",
-        
-        // Mantendo compatibilidade shadcn com as cores novas
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -39,7 +40,7 @@ export default {
       },
       fontFamily: {
         display: ["Inter", "sans-serif"],
-        body: ["Noto Sans", "sans-serif"],
+        body: ["Inter", "sans-serif"], // Padronizado conforme design
       },
       borderRadius: {
         DEFAULT: "0.5rem",
@@ -51,6 +52,7 @@ export default {
       boxShadow: {
         "soft": "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
         "hover": "0 10px 25px -5px rgba(115, 17, 212, 0.15), 0 8px 10px -6px rgba(115, 17, 212, 0.1)",
+        "card": "0 4px 20px rgba(0, 0, 0, 0.04)",
       },
     },
   },

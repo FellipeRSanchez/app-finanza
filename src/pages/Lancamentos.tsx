@@ -240,7 +240,7 @@ const Lancamentos = () => {
           <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Mostrando 1 a {filteredLancamentos.length} de {lancamentos.length} resultados</span>
           <div className="flex gap-2">
             <Button variant="outline" className="px-3 py-1.5 rounded border border-border-light dark:border-[#2d2438] text-text-secondary-light dark:text-text-secondary-dark text-sm hover:bg-background-light dark:hover:bg-[#2d2438] disabled:opacity-50" disabled>Anterior</Button>
-            <Button variant="outline" className="px-3 py-1.5 rounded border border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark text-sm hover:bg-background-light dark:hover:bg-[#2d2438]">Próximo</Button>
+            <Button variant="outline" className="px-3 py-1.5 rounded border border-border-light dark:border-[#2d2438] text-text-main-light dark:text-main-dark text-sm hover:bg-background-light dark:hover:bg-[#2d2438]">Próximo</Button>
           </div>
         </div>
       </div>
