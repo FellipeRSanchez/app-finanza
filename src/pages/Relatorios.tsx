@@ -2,28 +2,91 @@
 import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BarChart, PieChart, TrendingUp, TrendingDown, Calendar, Filter } from 'lucide-react';
-import { useState } from 'react';
+import { BarChart, PieChart, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
+
+interface CategoryStats {
+  category: string;
+  amount: number;
+  percentage: number;
+}
 
 const Relatorios = () => {
+  const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('monthly');
-  const [reportType, setReportType] = useState('expenses');
+  const [reportType, setReportType] = useState<'income' | 'expenses'>('expenses');
+  const [stats, setStats] = useState<CategoryStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totals, setTotals] = useState({ income: 0, expenses: 0 });
 
-  // Sample data for charts
-  const expenseData = [
-    { category: 'Alimentação', amount: 2450, percentage: 35 },
-    { category: 'Moradia', amount: 3100, percentage: 44 },
-    { category: 'Transporte', amount: 850, percentage: 12 },
-    { category: 'Saúde', amount: 420, percentage: 6 },
-    { category: 'Lazer', amount: 280, percentage: 4 },
-  ];
+  useEffect(() => {
+    if (user) {
+      fetchReportData();
+    }
+  }, [user, reportType, timeRange]);
 
-  const incomeData = [
-    { source: 'Salário', amount: 8500, percentage: 75 },
-    { source: 'Freelance', amount: 1500, percentage: 13 },
-    { source: 'Investimentos', amount: 900, percentage: 8 },
-    { source: 'Outros', amount: 400, percentage: 4 },
-  ];
+  const fetchReportData = async () => {
+    setLoading(true);
+    try {
+      const { data: userData } = await supabase
+        .from('usuarios')
+        .select('usu_grupo')
+        .eq('usu_id', user?.id)
+        .single();
+
+      if (!userData?.usu_grupo) return;
+
+      const now = new Date();
+      const startDate = format(startOfMonth(now), 'yyyy-MM-dd');
+      const endDate = format(endOfMonth(now), 'yyyy-MM-dd');
+
+      const { data: lancamentos, error: lError } = await supabase
+        .from('lancamentos')
+        .select(`
+          lan_valor,
+          categorias (cat_nome, cat_tipo)
+        `)
+        .eq('lan_grupo', userData.usu_grupo)
+        .gte('lan_data', startDate)
+        .lte('lan_data', endDate);
+
+      if (lError) throw lError;
+
+      const grouped: Record<string, number> = {};
+      let totalIncome = 0;
+      let totalExpenses = 0;
+
+      lancamentos?.forEach((lan: any) => {
+        const valor = Number(lan.lan_valor);
+        const type = lan.categorias?.cat_tipo;
+        const name = lan.categorias?.cat_nome || 'Sem Categoria';
+
+        if (type === 'receita') totalIncome += valor;
+        if (type === 'despesa') totalExpenses += valor;
+
+        if (type === (reportType === 'income' ? 'receita' : 'despesa')) {
+          grouped[name] = (grouped[name] || 0) + valor;
+        }
+      });
+
+      const currentTotal = reportType === 'income' ? totalIncome : totalExpenses;
+      const statsArray = Object.entries(grouped).map(([category, amount]) => ({
+        category,
+        amount,
+        percentage: currentTotal > 0 ? (amount / currentTotal) * 100 : 0
+      })).sort((a, b) => b.amount - a.amount);
+
+      setStats(statsArray);
+      setTotals({ income: totalIncome, expenses: totalExpenses });
+    } catch (error) {
+      console.error('Error fetching report data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -51,14 +114,6 @@ const Relatorios = () => {
                 onClick={() => setTimeRange('monthly')}
               >
                 Mensal
-              </Button>
-              <Button
-                variant={timeRange === 'quarterly' ? 'default' : 'ghost'}
-                size="sm"
-                className={timeRange === 'quarterly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
-                onClick={() => setTimeRange('quarterly')}
-              >
-                Trimestral
               </Button>
               <Button
                 variant={timeRange === 'yearly' ? 'default' : 'ghost'}
@@ -105,15 +160,24 @@ const Relatorios = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80 flex items-center justify-center">
-                  <div className="text-center">
-                    <PieChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark" />
-                    <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
-                      Gráfico de pizza será exibido aqui
-                    </p>
-                    <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">
-                      Visualização detalhada da distribuição {reportType === 'expenses' ? 'de gastos' : 'de receitas'}
-                    </p>
-                  </div>
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  ) : (
+                    <div className="text-center">
+                      <PieChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
+                      <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
+                        Visualização de {stats.length} categorias
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {stats.slice(0, 5).map((s, i) => (
+                           <div key={i} className="flex items-center gap-1 text-xs px-2 py-1 bg-background-light dark:bg-background-dark rounded">
+                             <span className="w-2 h-2 rounded-full bg-primary-new"></span>
+                             {s.category}
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -127,12 +191,9 @@ const Relatorios = () => {
               <CardContent>
                 <div className="h-80 flex items-center justify-center">
                   <div className="text-center">
-                    <BarChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark" />
+                    <BarChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
                     <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
-                      Gráfico de barras será exibido aqui
-                    </p>
-                    <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark mt-2">
-                      Comparação de receitas e despesas ao longo do tempo
+                      Comparação histórica em breve
                     </p>
                   </div>
                 </div>
@@ -154,10 +215,7 @@ const Relatorios = () => {
                     <TrendingUp className="h-5 w-5 text-green-500" />
                   </div>
                   <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                    {formatCurrency(12500)}
-                  </p>
-                  <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                    +12% em relação ao período anterior
+                    {formatCurrency(totals.income)}
                   </p>
                 </div>
 
@@ -167,23 +225,17 @@ const Relatorios = () => {
                     <TrendingDown className="h-5 w-5 text-red-500" />
                   </div>
                   <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                    {formatCurrency(8200)}
-                  </p>
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                    +5% em relação ao período anterior
+                    {formatCurrency(totals.expenses)}
                   </p>
                 </div>
 
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className="text-text-secondary-light dark:text-text-secondary-dark">Resultado</span>
-                    <BarChart className="h-5 w-5 text-blue-500" />
+                    <TrendingUp className="h-5 w-5 text-blue-500" />
                   </div>
                   <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                    {formatCurrency(4300)}
-                  </p>
-                  <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                    +8% em relação ao período anterior
+                    {formatCurrency(totals.income - totals.expenses)}
                   </p>
                 </div>
               </CardContent>
@@ -192,35 +244,34 @@ const Relatorios = () => {
             <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
               <CardHeader>
                 <CardTitle className="text-text-main-light dark:text-text-main-dark">
-                  Categorias Principais
+                  Maiores {reportType === 'expenses' ? 'Gastos' : 'Fontes'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {(reportType === 'expenses' ? expenseData : incomeData).map((item, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        {item.category || item.source}
-                      </span>
-                      <span className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
-                        {formatCurrency(item.amount)}
-                      </span>
+                {stats.length === 0 ? (
+                  <p className="text-sm text-text-secondary-light text-center py-4">Nenhum dado encontrado</p>
+                ) : (
+                  stats.map((item, index) => (
+                    <div key={index}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                          {item.category}
+                        </span>
+                        <span className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
+                          {formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${
+                            reportType === 'expenses' ? 'bg-red-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${item.percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          reportType === 'expenses' ? 'bg-red-500' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${item.percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="text-right mt-1">
-                      <span className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                        {item.percentage}%
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>

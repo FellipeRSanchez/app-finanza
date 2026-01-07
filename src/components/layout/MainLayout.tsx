@@ -6,6 +6,7 @@ import { Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { MadeWithDyad } from '@/components/made-with-dyad';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -36,7 +37,7 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar - Desktop */}
       {!isMobile && (
-        <aside className="w-64 flex-shrink-0 hidden lg:block">
+        <aside className="w-72 flex-shrink-0 hidden lg:block">
           <Sidebar />
         </aside>
       )}
@@ -47,7 +48,7 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         >
-          <div className="w-64 h-full" onClick={(e) => e.stopPropagation()}>
+          <div className="w-72 h-full" onClick={(e) => e.stopPropagation()}>
             <Sidebar />
           </div>
         </div>
@@ -58,6 +59,7 @@ const MainLayout = ({ children, title }: MainLayoutProps) => {
         <Topbar onMenuClick={() => setSidebarOpen(true)} title={title} />
         <main className="flex-1 overflow-y-auto p-6">
           {children}
+          <MadeWithDyad />
         </main>
       </div>
     </div>
