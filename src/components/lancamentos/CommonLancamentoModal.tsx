@@ -127,9 +127,12 @@ const CommonLancamentoModal = ({
     }
   };
 
-  // Simplified filtering: categories prop already excludes system categories
+  // Improved filtering: Ensure we only show common categories of the selected type
   const filteredCategories = categories.filter(c => 
-    c.cat_tipo === formData.cat_tipo
+    c.cat_tipo === formData.cat_tipo && 
+    c.cat_tipo !== 'sistema' &&
+    c.cat_nome !== 'Transferência entre Contas' &&
+    c.cat_nome !== 'Pagamento de Fatura'
   );
 
   return (
@@ -238,25 +241,25 @@ const CommonLancamentoModal = ({
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                 <SelectValue />
               </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  <SelectItem value="true">Confirmado (Conciliado)</SelectItem>
-                  <SelectItem value="false">Pendente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <SelectContent className="bg-white border shadow-lg rounded-xl">
+                <SelectItem value="true">Confirmado (Conciliado)</SelectItem>
+                <SelectItem value="false">Pendente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-            <DialogFooter className="pt-4">
-              <Button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg shadow-primary/25"
-              >
-                {loading ? 'Processando...' : lancamento ? 'Atualizar Lançamento' : 'Criar Lançamento'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+          <DialogFooter className="pt-4">
+            <Button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg shadow-primary/25"
+            >
+              {loading ? 'Processando...' : lancamento ? 'Atualizar Lançamento' : 'Criar Lançamento'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
