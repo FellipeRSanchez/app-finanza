@@ -21,7 +21,7 @@ const ImportacaoExtratos = () => {
 
   const handleImport = () => {
     if (!selectedFile) return;
-    
+
     setIsImporting(true);
     // Simulate import process
     setTimeout(() => {
@@ -150,9 +150,9 @@ const ImportacaoExtratos = () => {
                       OFX, CSV ou XLS (max. 10MB)
                     </p>
                   </div>
-                  <Input 
-                    type="file" 
-                    className="hidden" 
+                  <Input
+                    type="file"
+                    className="hidden"
                     onChange={handleFileChange}
                     accept=".ofx,.csv,.xls,.xlsx"
                   />
@@ -218,8 +218,8 @@ const ImportacaoExtratos = () => {
                   </TableHeader>
                   <TableBody className="divide-y divide-border-light dark:divide-[#3a3045]">
                     {sampleTransactions.map((transaction) => (
-                      <TableRow 
-                        key={transaction.id} 
+                      <TableRow
+                        key={transaction.id}
                         className={`hover:bg-background-light dark:hover:bg-[#2d2438] transition-colors ${
                           transaction.status === 'Duplicado' ? 'bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20' : ''
                         }`}
@@ -266,7 +266,7 @@ const ImportacaoExtratos = () => {
             <Button variant="outline" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-transparent text-sm font-bold text-text-secondary-light hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleImport}
               disabled={!selectedFile || isImporting}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary-new hover:bg-primary-new/90 text-white shadow-lg shadow-primary-new/30 text-sm font-bold transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
