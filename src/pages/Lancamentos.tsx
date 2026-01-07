@@ -135,8 +135,13 @@ const Lancamentos = () => {
       // Other filters
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
-      // Corrected: Using .eq directly on the nested column for type filter
-      if (filterType !== 'all') query = query.eq('categorias.cat_tipo', filterType);
+      
+      // Corrected: Filter by lan_valor sign for 'receita' and 'despesa'
+      if (filterType === 'receita') {
+        query = query.gt('lan_valor', 0);
+      } else if (filterType === 'despesa') {
+        query = query.lt('lan_valor', 0);
+      }
 
       const { data, error } = await query;
       if (error) {

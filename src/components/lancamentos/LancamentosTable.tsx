@@ -79,7 +79,8 @@ const LancamentosTable: React.FC<LancamentosTableProps> = ({
               </TableRow>
             ) : (
               lancamentos.map((item) => {
-                const isIncome = item.categorias?.cat_tipo === 'receita';
+                // Determine if it's income based on lan_valor sign
+                const isIncome = item.lan_valor > 0;
                 return (
                   <TableRow key={item.lan_id} className="border-border-light hover:bg-background-light/30 group transition-colors cursor-pointer">
                     <TableCell className="pl-8 py-4">
