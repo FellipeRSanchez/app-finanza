@@ -4,309 +4,162 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { ArrowUpRight, ArrowDownRight, Calendar, Eye, EyeOff, TrendingUp, PiggyBank, Plus, Wallet, Lock, Upload } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Card } from '@/components/ui/card';
+import { ArrowUpRight, ArrowDownRight, Calendar, Eye, Wallet, PiggyBank, Plus, TrendingUp, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-interface DashboardStats {
-  saldoConsolidado: number;
-  receitasMes: number;
-  despesasMes: number;
-  resultadoMes: number;
-}
-
-interface ChartData {
-  month: string;
-  receitas: number;
-  despesas: number;
-}
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats>({
-    saldoConsolidado: 0,
-    receitasMes: 0,
-    despesasMes: 0,
-    resultadoMes: 0,
-  });
-  const [chartData, setChartData] = useState<ChartData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hideBalances, setHideBalances] = useState(false);
-  const [hasNoData, setHasNoData] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [user]);
-
-  const fetchDashboardData = async () => {
-    try {
-      // Tentar buscar o registro do usuário e seu grupo
-      const { data: userData, error: userError } = await supabase
-        .from('usuarios')
-        .select('usu_grupo')
-        .eq('usu_id', user?.id)
-        .maybeSingle();
-
-      if (!userData?.usu_grupo) {
-        setHasNoData(true);
-        setLoading(false);
-        return;
-      }
-      
-      const grupoId = userData.usu_grupo;
-
-      // 1. Estatísticas do mês atual
-      const now = new Date();
-      const currentStart = format(startOfMonth(now), 'yyyy-MM-dd');
-      const currentEnd = format(endOfMonth(now), 'yyyy-MM-dd');
-
-      const { data: currentLancamentos } = await supabase
-        .from('lancamentos')
-        .select(`lan_valor, categorias (cat_tipo)`)
-        .eq('lan_grupo', grupoId)
-        .gte('lan_data', currentStart)
-        .lte('lan_data', currentEnd);
-
-      let receitasMes = 0;
-      let despesasMes = 0;
-      currentLancamentos?.forEach((lan: any) => {
-        const val = Number(lan.lan_valor);
-        if (lan.categorias?.cat_tipo === 'receita') receitasMes += val;
-        else despesasMes += val;
-      });
-
-      // 2. Dados dos últimos 6 meses para o gráfico
-      const last6MonthsData: ChartData[] = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = subMonths(now, i);
-        const start = format(startOfMonth(date), 'yyyy-MM-dd');
-        const end = format(endOfMonth(date), 'yyyy-MM-dd');
-
-        const { data: l } = await supabase
-          .from('lancamentos')
-          .select(`lan_valor, categorias (cat_tipo)`)
-          .eq('lan_grupo', grupoId)
-          .gte('lan_data', start)
-          .lte('lan_data', end);
-
-        let r = 0; let d = 0;
-        l?.forEach((item: any) => {
-          if (item.categorias?.cat_tipo === 'receita') r += Number(item.lan_valor);
-          else d += Number(item.lan_valor);
-        });
-
-        last6MonthsData.push({
-          month: format(date, 'MMM', { locale: ptBR }),
-          receitas: r,
-          despesas: d
-        });
-      }
-      setChartData(last6MonthsData);
-
-      // 3. Saldo consolidado baseado nas contas
-      const { data: contas } = await supabase
-        .from('contas')
-        .select('con_limite, con_tipo')
-        .eq('con_grupo', grupoId);
-        
-      let saldo = 0;
-      contas?.forEach(c => {
-        // Para fins deste dashboard, 'con_limite' é usado como saldo atual se for banco/investimento
-        if (c.con_tipo !== 'cartao' && c.con_tipo !== 'passivo') {
-          saldo += Number(c.con_limite || 0);
-        } else {
-          saldo -= Number(c.con_limite || 0);
-        }
-      });
-
-      setStats({
-        saldoConsolidado: saldo,
-        receitasMes,
-        despesasMes,
-        resultadoMes: receitasMes - despesasMes,
-      });
-
-      setHasNoData(last6MonthsData.every(d => d.receitas === 0 && d.despesas === 0) && saldo === 0);
-
-    } catch (error) {
-      console.error('Erro ao buscar dados do dashboard:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    if (hideBalances) return 'R$ ••••••';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
-  if (loading) {
-    return (
-      <MainLayout title="Dashboard">
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-new"></div>
-        </div>
-      </MainLayout>
-    );
-  }
-
+  
   return (
     <MainLayout title="Painel Principal">
       <div className="max-w-7xl mx-auto flex flex-col gap-8">
-        <div className="flex items-end justify-between">
+        {/* Welcome/Date */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark font-medium text-sm mb-1 capitalize">
+            <p className="text-[#756189] dark:text-[#a08cb6] font-medium text-sm mb-1 capitalize">
               {format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })}
             </p>
-            <h1 className="text-3xl font-bold text-text-main-light dark:text-white tracking-tight">
-              Olá, {user?.email?.split('@')[0]}! 👋
-            </h1>
+            <h1 className="text-3xl font-bold text-[#141118] dark:text-white tracking-tight">Bom dia, {user?.email?.split('@')[0]}! 👋</h1>
           </div>
-          <Button variant="ghost" className="text-text-secondary-light flex items-center gap-2 hover:bg-background-light dark:hover:bg-[#2d2438]">
-            <Calendar className="w-4 h-4" /> Este Mês
+          <Button variant="ghost" className="text-sm font-medium text-[#756189] dark:text-[#a08cb6] hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1">
+            Filtro: Este Mês <ChevronDown className="w-4 h-4" />
           </Button>
         </div>
 
         {/* KPI Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-br from-[#141118] to-[#2d2438] p-6 text-white rounded-2xl relative overflow-hidden group shadow-xl">
-            <div className="absolute top-0 right-0 p-32 bg-primary-new/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-            <div className="flex justify-between items-start relative z-10">
-              <div className="flex items-center gap-2 opacity-80">
-                <Wallet className="w-5 h-5" /> 
+          <Card className="bg-gradient-to-br from-[#141118] to-[#2d2438] rounded-2xl p-6 text-white shadow-xl shadow-gray-200 dark:shadow-none flex flex-col justify-between min-h-[160px] relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-32 bg-primary/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+            <div className="flex justify-between items-start z-10">
+              <div className="flex items-center gap-2 text-gray-300">
+                <Wallet className="w-5 h-5" />
                 <span className="text-sm font-medium">Saldo Total</span>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => setHideBalances(!hideBalances)} 
-                className="text-white/50 hover:text-white h-8 w-8"
-              >
-                {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
+              <button className="text-gray-400 hover:text-white transition-colors">
+                <Eye className="w-5 h-5" />
+              </button>
             </div>
-            <h2 className="text-3xl font-bold mt-4 relative z-10 transition-all">
-              {formatCurrency(stats.saldoConsolidado)}
-            </h2>
-          </Card>
-          
-          <Card className="p-6 bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] shadow-soft rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <ArrowDownRight className="w-5 h-5" />
+            <div className="z-10 mt-4">
+              <h2 className="text-3xl font-bold tracking-tight mb-1">R$ 124.500,00</h2>
+              <div className="flex items-center gap-2">
+                <span className="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1 font-medium">
+                  <TrendingUp className="w-3 h-3" /> +2.5%
+                </span>
+                <span className="text-xs text-gray-400">vs. mês anterior</span>
               </div>
-              <span className="text-sm font-medium">Receitas</span>
             </div>
-            <h2 className="text-2xl font-bold mt-4 text-text-main-light dark:text-white">
-              {formatCurrency(stats.receitasMes)}
-            </h2>
           </Card>
 
-          <Card className="p-6 bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] shadow-soft rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark">
-              <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
-                <ArrowUpRight className="w-5 h-5" />
+          <Card className="bg-white dark:bg-[#1e1629] rounded-2xl p-6 border border-[#f2f0f4] dark:border-[#2d2438] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <ArrowDownRight className="w-4 h-4" />
+                </div>
+                <span className="text-[#756189] dark:text-[#a08cb6] text-sm font-medium">Receitas</span>
               </div>
-              <span className="text-sm font-medium">Despesas</span>
             </div>
-            <h2 className="text-2xl font-bold mt-4 text-text-main-light dark:text-white">
-              {formatCurrency(stats.despesasMes)}
-            </h2>
+            <div className="mt-4">
+              <h2 className="text-2xl font-bold text-[#141118] dark:text-white tracking-tight">R$ 12.000,00</h2>
+              <p className="text-emerald-600 dark:text-emerald-400 text-xs font-medium mt-1">+10% este mês</p>
+            </div>
           </Card>
 
-          <Card className="p-6 bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] shadow-soft rounded-2xl flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark">
-              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <PiggyBank className="w-5 h-5" />
+          <Card className="bg-white dark:bg-[#1e1629] rounded-2xl p-6 border border-[#f2f0f4] dark:border-[#2d2438] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
+                  <ArrowUpRight className="w-4 h-4" />
+                </div>
+                <span className="text-[#756189] dark:text-[#a08cb6] text-sm font-medium">Despesas</span>
               </div>
-              <span className="text-sm font-medium">Resultado</span>
             </div>
-            <h2 className={cn("text-2xl font-bold mt-4", stats.resultadoMes >= 0 ? "text-emerald-600" : "text-red-600")}>
-              {formatCurrency(stats.resultadoMes)}
-            </h2>
+            <div className="mt-4">
+              <h2 className="text-2xl font-bold text-[#141118] dark:text-white tracking-tight">R$ 4.500,00</h2>
+              <p className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">+5% este mês</p>
+            </div>
+          </Card>
+
+          <Card className="bg-white dark:bg-[#1e1629] rounded-2xl p-6 border border-[#f2f0f4] dark:border-[#2d2438] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <PiggyBank className="w-4 h-4" />
+                </div>
+                <span className="text-[#756189] dark:text-[#a08cb6] text-sm font-medium">Resultado</span>
+              </div>
+            </div>
+            <div className="mt-4">
+              <h2 className="text-2xl font-bold text-[#141118] dark:text-white tracking-tight">R$ 7.500,00</h2>
+              <p className="text-emerald-600 dark:text-emerald-400 text-xs font-medium mt-1">+15% de margem</p>
+            </div>
           </Card>
         </div>
 
-        {/* Main Section: Charts & Lists */}
+        {/* Main Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2 p-6 bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] shadow-soft rounded-2xl h-[400px] flex flex-col">
-            <div className="flex justify-between items-center mb-8">
+          <Card className="lg:col-span-2 bg-white dark:bg-[#1e1629] rounded-2xl p-6 border border-[#f2f0f4] dark:border-[#2d2438] shadow-sm flex flex-col min-h-[380px]">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="font-bold text-lg text-text-main-light dark:text-white">Fluxo de Caixa</h3>
-                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Últimos 6 meses</p>
+                <h3 className="text-lg font-bold text-[#141118] dark:text-white">Fluxo de Caixa</h3>
+                <p className="text-sm text-[#756189] dark:text-[#a08cb6]">Entradas vs Saídas (6 Meses)</p>
               </div>
-              <div className="flex gap-2 bg-background-light dark:bg-[#2d2438] p-1 rounded-lg">
-                <Button variant="ghost" size="sm" className="bg-white dark:bg-[#362b45] shadow-sm text-xs h-7">Mensal</Button>
-                <Button variant="ghost" size="sm" className="text-xs h-7 text-text-secondary-light">Anual</Button>
+              <div className="flex gap-2 bg-[#f2f0f4] dark:bg-[#2d2438] p-1 rounded-lg">
+                <Button variant="ghost" size="sm" className="bg-white dark:bg-[#362b45] text-[#141118] dark:text-white text-xs font-medium rounded shadow-sm">Mensal</Button>
+                <Button variant="ghost" size="sm" className="text-[#756189] dark:text-[#a08cb6] text-xs font-medium">Anual</Button>
               </div>
             </div>
-            
-            <div className="flex-1 flex items-end justify-between gap-4 px-2 pt-8 pb-2 relative">
-              {hasNoData ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary-light dark:text-text-secondary-dark opacity-50">
-                  <TrendingUp className="w-12 h-12 mb-2" />
-                  <p className="text-sm">Ainda não há dados suficientes para exibir o gráfico.</p>
+            {/* Custom Chart Implementation matching design */}
+            <div className="flex-1 flex items-end justify-between gap-4 px-2 pt-8 pb-2">
+              {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'].map((month, i) => (
+                <div key={month} className="flex flex-col items-center gap-2 flex-1 h-full justify-end group cursor-pointer">
+                  <div className="flex gap-1 items-end w-full justify-center max-w-[40px]" style={{ height: `${30 + (i * 10)}%` }}>
+                    <div className="w-full bg-emerald-400/80 rounded-t-sm h-[80%] group-hover:bg-emerald-500 transition-colors"></div>
+                    <div className="w-full bg-red-400/80 rounded-t-sm h-[40%] group-hover:bg-red-500 transition-colors"></div>
+                  </div>
+                  <span className={cn("text-xs font-medium", i === 5 ? "text-primary font-bold" : "text-[#756189] dark:text-[#a08cb6]")}>{month}</span>
                 </div>
-              ) : (
-                chartData.map((data, idx) => {
-                  const max = Math.max(...chartData.map(d => Math.max(d.receitas, d.despesas)), 1);
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer h-full justify-end">
-                      <div className="w-full flex justify-center items-end gap-1 h-full max-w-[50px] relative">
-                        <div 
-                          className="w-full bg-emerald-400/80 rounded-t-sm transition-all group-hover:bg-emerald-500" 
-                          style={{ height: `${(data.receitas / max) * 100}%` }}
-                        >
-                          <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] py-1 px-2 rounded whitespace-nowrap z-10">R: {formatCurrency(data.receitas)}</div>
-                        </div>
-                        <div 
-                          className="w-full bg-red-400/80 rounded-t-sm transition-all group-hover:bg-red-500" 
-                          style={{ height: `${(data.despesas / max) * 100}%` }}
-                        >
-                          <div className="hidden group-hover:block absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] py-1 px-2 rounded whitespace-nowrap z-10 translate-y-4">D: {formatCurrency(data.despesas)}</div>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-medium text-text-secondary-light dark:text-text-secondary-dark uppercase">{data.month}</span>
-                    </div>
-                  );
-                })
-              )}
+              ))}
             </div>
           </Card>
 
-          <Card className="p-6 bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] shadow-soft rounded-2xl flex flex-col h-full">
-            <h3 className="font-bold text-lg mb-6 text-text-main-light dark:text-white">Ações Rápidas</h3>
-            <div className="flex flex-col gap-3">
-              <Link to="/lancamentos">
-                <Button className="w-full justify-start gap-3 h-12 rounded-xl text-text-main-light dark:text-white border-border-light dark:border-[#3a3045] hover:bg-background-light dark:hover:bg-[#2d2438]" variant="outline">
-                  <Plus className="w-5 h-5 text-primary-new" /> Novo Lançamento
-                </Button>
-              </Link>
-              <Link to="/importacao-extratos">
-                <Button className="w-full justify-start gap-3 h-12 rounded-xl text-text-main-light dark:text-white border-border-light dark:border-[#3a3045] hover:bg-background-light dark:hover:bg-[#2d2438]" variant="outline">
-                  <Upload className="w-5 h-5 text-blue-500" /> Importar Extrato
-                </Button>
-              </Link>
-              <Link to="/fechamento">
-                <Button className="w-full justify-start gap-3 h-12 rounded-xl text-text-main-light dark:text-white border-border-light dark:border-[#3a3045] hover:bg-background-light dark:hover:bg-[#2d2438]" variant="outline">
-                  <Lock className="w-5 h-5 text-orange-500" /> Fechamento Mensal
-                </Button>
-              </Link>
+          <Card className="bg-white dark:bg-[#1e1629] rounded-2xl p-6 border border-[#f2f0f4] dark:border-[#2d2438] shadow-sm flex flex-col h-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-[#141118] dark:text-white">Minhas Contas</h3>
+              <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full bg-[#f2f0f4] dark:bg-[#362b45] flex items-center justify-center text-[#141118] dark:text-white hover:bg-[#e5e7eb] transition-colors">
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
-            
-            <div className="mt-auto pt-6">
-              <div className="bg-primary-new/5 rounded-2xl p-4 border border-primary-new/10">
-                <p className="text-xs font-bold text-primary-new uppercase mb-1">Dica do dia</p>
-                <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark leading-relaxed">
-                  Mantenha suas contas em dia realizando o fechamento mensal até o dia 5 do mês seguinte.
-                </p>
-              </div>
+            <div className="flex flex-col gap-4 flex-1">
+              {[
+                { name: 'Nubank', type: 'Conta Corrente', value: 'R$ 5.200,00', color: '#820AD1' },
+                { name: 'Itaú', type: 'Investimentos', value: 'R$ 110.000,00', color: '#EC7000' },
+                { name: 'Bradesco', type: 'Poupança', value: 'R$ 8.500,00', color: '#dc2626' },
+                { name: 'Carteira', type: 'Dinheiro', value: 'R$ 800,00', color: '#141118' }
+              ].map((acc) => (
+                <div key={acc.name} className="flex items-center justify-between p-3 rounded-xl hover:bg-[#f7f6f8] dark:hover:bg-[#2d2438] transition-colors cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs" 
+                      style={{ backgroundColor: acc.color }}
+                    >
+                      {acc.name.substring(0, 2)}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-[#141118] dark:text-white">{acc.name}</span>
+                      <span className="text-xs text-[#756189] dark:text-[#a08cb6]">{acc.type}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-[#141118] dark:text-white">{acc.value}</p>
+                </div>
+              ))}
+              <Button variant="outline" className="mt-auto w-full py-3 rounded-xl border border-[#f2f0f4] dark:border-[#362b45] text-sm font-medium text-[#756189] dark:text-[#a08cb6] hover:bg-[#f7f6f8] dark:hover:bg-[#2d2438] transition-colors">
+                Gerenciar Contas
+              </Button>
             </div>
           </Card>
         </div>

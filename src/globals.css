@@ -4,65 +4,65 @@
 
 @layer base {
   :root {
-    --background: 270 10% 97%; /* background-light */
-    --foreground: 270 15% 8%; /* text-main-light */
+    --background: 270 10% 97%; /* #f7f6f8 */
+    --foreground: 270 15% 8%; /* #141118 */
 
-    --card: 0 0% 100%; /* card-light */
-    --card-foreground: 270 15% 8%; /* text-main-light */
+    --card: 0 0% 100%; /* #ffffff */
+    --card-foreground: 270 15% 8%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 270 15% 8%;
 
-    --primary: 275 84% 45%; /* primary-new */
+    --primary: 275 84% 45%; /* #7311d4 */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 270 10% 97%; /* background-light */
-    --secondary-foreground: 270 15% 8%; /* text-main-light */
+    --secondary: 270 10% 97%;
+    --secondary-foreground: 270 15% 8%;
 
-    --muted: 270 10% 97%; /* background-light */
-    --muted-foreground: 270 15% 49%; /* text-secondary-light */
+    --muted: 270 10% 90%;
+    --muted-foreground: 270 15% 45%;
 
-    --accent: 270 10% 97%; /* background-light */
-    --accent-foreground: 270 15% 8%; /* text-main-light */
+    --accent: 270 10% 97%;
+    --accent-foreground: 270 15% 8%;
 
-    --destructive: 0 86% 60%; /* danger-new */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 270 10% 90%; /* approximated from border-light */
+    --border: 270 10% 90%;
     --input: 270 10% 90%;
-    --ring: 275 84% 45%; /* primary-new */
+    --ring: 275 84% 45%;
 
-    --radius: 1rem; /* Updated to match new design's 'lg' */
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 270 30% 10%; /* background-dark */
-    --foreground: 0 0% 100%; /* text-main-dark */
+    --background: 270 30% 10%; /* #191022 */
+    --foreground: 0 0% 100%;
 
-    --card: 270 20% 18%; /* card-dark */
-    --card-foreground: 0 0% 100%; /* text-main-dark */
+    --card: 270 20% 18%; /* #2c2435 */
+    --card-foreground: 0 0% 100%;
 
     --popover: 270 20% 18%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 275 84% 45%; /* primary-new */
+    --primary: 275 84% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 270 30% 10%; /* background-dark */
+    --secondary: 270 30% 10%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 270 30% 10%; /* background-dark */
-    --muted-foreground: 270 15% 66%; /* text-secondary-dark */
+    --muted: 270 20% 25%;
+    --muted-foreground: 270 15% 66%;
 
-    --accent: 270 30% 10%; /* background-dark */
+    --accent: 270 20% 25%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 86% 60%; /* danger-new */
+    --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 270 20% 25%; /* approximated from border-dark */
+    --border: 270 20% 25%;
     --input: 270 20% 25%;
-    --ring: 275 84% 45%; /* primary-new */
+    --ring: 275 84% 45%;
   }
 }
 
@@ -70,9 +70,8 @@
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground font-body; /* Added font-body */
+    @apply bg-background text-foreground font-display;
   }
 }
 
@@ -85,12 +84,12 @@
     background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-    background: #e2e8f0; /* Light gray */
+    background: #e2e8f0;
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #cbd5e1; /* Slightly darker gray */
+    background: #cbd5e1;
 }
 .dark ::-webkit-scrollbar-thumb {
-    background: #4b5563; /* Darker gray for dark mode */
+    background: #4b5563;
 }
