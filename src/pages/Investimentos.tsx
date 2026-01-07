@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, Search, Database, Landmark, ShoppingCart, Bitcoin, Building, ArrowUp, ArrowDown, Wallet, PiggyBank, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Search, Database, Landmark, ShoppingCart, Bitcoin, Building, ArrowUp, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 import { useState } from 'react';
 
 const Investimentos = () => {
@@ -104,7 +104,7 @@ const Investimentos = () => {
           <div>
             <div className="flex items-center gap-2 text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">
               <span>Finanças</span>
-              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              <ChevronRight className="w-4 h-4" />
               <span className="text-primary-new">Investimentos</span>
             </div>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark lg:text-4xl">
@@ -291,7 +291,7 @@ const Investimentos = () => {
                         size="icon"
                         className="rounded-full p-2 text-text-secondary-light hover:bg-background-light hover:text-text-main-light dark:hover:bg-[#2d2438] dark:hover:text-text-main-dark"
                       >
-                        <span className="material-symbols-outlined text-[20px]">more_vert</span>
+                        <MoreVertical className="w-5 h-5" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -313,14 +313,14 @@ const Investimentos = () => {
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-light text-text-secondary-light hover:bg-background-light hover:text-text-main-light dark:border-[#2d2438] dark:hover:bg-[#1e1629] dark:hover:text-text-main-dark disabled:opacity-50"
                 disabled
               >
-                <ArrowDown size={18} className="rotate-90" />
+                <ChevronLeft className="w-4 h-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-light text-text-secondary-light hover:bg-background-light hover:text-text-main-light dark:border-[#2d2438] dark:hover:bg-[#1e1629] dark:hover:text-text-main-dark"
               >
-                <ArrowDown size={18} className="-rotate-90" />
+                <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
