@@ -129,7 +129,7 @@ const Lancamentos = () => {
       // Other filters
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
-      if (filterType !== 'all') query = query.eq('categorias.cat_tipo', filterType); // Changed .filter to .eq for type filter
+      if (filterType !== 'all') query = query.filter('categorias.cat_tipo', 'eq', filterType); // Reverted to .filter for type filter
 
       const { data, error } = await query;
       if (error) throw error;
