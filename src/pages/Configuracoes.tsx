@@ -8,7 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Settings, Banknote, CreditCard, Landmark, Wallet } from 'lucide-react'; // Adicionados ícones para categorias e contas
+import { cn } from '@/lib/utils';
+import ProfileSettingsForm from '@/components/settings/ProfileSettingsForm';
+import PreferencesSettings from '@/components/settings/PreferencesSettings';
+import { showSuccess, showError } from '@/utils/toast';
 
 interface Conta {
   con_id: string;
@@ -62,6 +66,7 @@ const Configuracoes = () => {
       setCategorias(categoriasData.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      showError('Erro ao carregar dados de configurações.');
     } finally {
       setLoading(false);
     }
@@ -89,8 +94,10 @@ const Configuracoes = () => {
 
       setNewContaNome('');
       fetchData();
+      showSuccess('Conta adicionada com sucesso!');
     } catch (error) {
       console.error('Error adding conta:', error);
+      showError('Erro ao adicionar conta.');
     }
   };
 
@@ -99,8 +106,10 @@ const Configuracoes = () => {
       const { error } = await supabase.from('contas').delete().eq('con_id', id);
       if (error) throw error;
       fetchData();
+      showSuccess('Conta excluída com sucesso!');
     } catch (error) {
       console.error('Error deleting conta:', error);
+      showError('Erro ao excluir conta.');
     }
   };
 
@@ -126,8 +135,10 @@ const Configuracoes = () => {
 
       setNewCategoriaNome('');
       fetchData();
+      showSuccess('Categoria adicionada com sucesso!');
     } catch (error) {
       console.error('Error adding categoria:', error);
+      showError('Erro ao adicionar categoria.');
     }
   };
 
@@ -136,16 +147,36 @@ const Configuracoes = () => {
       const { error } = await supabase.from('categorias').delete().eq('cat_id', id);
       if (error) throw error;
       fetchData();
+      showSuccess('Categoria excluída com sucesso!');
     } catch (error) {
       console.error('Error deleting categoria:', error);
+      showError('Erro ao excluir categoria.');
     }
+  };
+
+  const getAccountIcon = (type: string) => {
+    switch (type) {
+      case 'banco': return <Landmark className="w-5 h-5" />;
+      case 'cartao': return <CreditCard className="w-5 h-5" />;
+      case 'investimento': return <Banknote className="w-5 h-5" />;
+      case 'ativo': return <Wallet className="w-5 h-5" />;
+      default: return <Settings className="w-5 h-5" />;
+    }
+  };
+
+  const getCategoryColorClass = (index: number) => {
+    const colors = [
+      'bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500',
+      'bg-pink-500', 'bg-cyan-500', 'bg-green-500', 'bg-indigo-500'
+    ];
+    return colors[index % colors.length];
   };
 
   if (loading) {
     return (
       <MainLayout title="Configurações">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
       </MainLayout>
     );
@@ -153,142 +184,113 @@ const Configuracoes = () => {
 
   return (
     <MainLayout title="Configurações">
-      <div className="space-y-6">
-        <Tabs defaultValue="contas" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="contas">Contas</TabsTrigger>
-            <TabsTrigger value="categorias">Categorias</TabsTrigger>
-          </TabsList>
+      <div className="max-w-5xl mx-auto px-4 py-10 md:px-12 md:py-12">
+        {/* Page Header */}
+        <div className="flex flex-col gap-2 mb-10">
+          <h1 className="text-text-main-light dark:text-text-main-dark text-3xl md:text-4xl font-black leading-tight tracking-[-0.033em]">Configurações</h1>
+          <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg font-normal leading-normal">Gerencie suas informações pessoais, categorias e preferências da conta.</p>
+        </div>
 
-          <TabsContent value="contas" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Adicionar Nova Conta</CardTitle>
+        <div className="flex flex-col gap-8">
+          {/* Section: Profile Card */}
+          <ProfileSettingsForm />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Section: Categories */}
+            <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438] flex flex-col h-full">
+              <CardHeader className="px-0 pt-0 pb-6 flex-row justify-between items-center">
+                <CardTitle className="text-text-main-light dark:text-text-main-dark text-xl font-bold">Categorias Principais</CardTitle>
+                <Button variant="link" className="text-primary-new hover:text-primary-new/80 text-sm font-semibold">Gerenciar</Button>
               </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <Input
-                    placeholder="Nome da conta"
-                    value={newContaNome}
-                    onChange={(e) => setNewContaNome(e.target.value)}
-                  />
-                  <select
-                    value={newContaTipo}
-                    onChange={(e) => setNewContaTipo(e.target.value)}
-                    className="px-4 py-2 border rounded-md"
-                  >
-                    <option value="banco">Banco</option>
-                    <option value="cartao">Cartão</option>
-                    <option value="investimento">Investimento</option>
-                    <option value="ativo">Ativo</option>
-                    <option value="passivo">Passivo</option>
-                  </select>
-                  <Button onClick={handleAddConta}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
+              <CardContent className="px-0 py-0 flex flex-col gap-4">
+                <div className="flex flex-wrap gap-2">
+                  {categorias.map((categoria, index) => (
+                    <div key={categoria.cat_id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border-light dark:border-gray-700 bg-card-light dark:bg-gray-800 shadow-sm">
+                      <span className={cn("size-2.5 rounded-full", getCategoryColorClass(index))}></span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{categoria.cat_nome}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-dashed border-border-light dark:border-gray-600 hover:border-primary-new text-gray-500 hover:text-primary-new cursor-pointer transition-colors bg-transparent">
+                    <Plus className="w-4 h-4" />
+                    <span className="text-sm font-medium">Nova</span>
+                  </div>
+                </div>
+                <div className="mt-8 pt-6 border-t border-border-light dark:border-[#2d2438]">
+                  <h4 className="text-xs font-semibold text-text-secondary-light dark:text-gray-500 uppercase tracking-wider mb-4">Resumo Mensal</h4>
+                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Receitas</span>
+                      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">R$ 12.450,00</span> {/* Placeholder */}
+                    </div>
+                    <div className="h-8 w-px bg-gray-200 dark:bg-gray-700"></div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Despesas</span>
+                      <span className="text-lg font-bold text-red-600 dark:text-red-400">R$ 4.320,00</span> {/* Placeholder */}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Contas Cadastradas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {contas.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Nenhuma conta cadastrada</p>
-                ) : (
-                  <div className="space-y-3">
-                    {contas.map((conta) => (
-                      <div
-                        key={conta.con_id}
-                        className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {conta.con_nome}
-                          </p>
-                          <p className="text-sm text-gray-500 capitalize">{conta.con_tipo}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteConta(conta.con_id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+            {/* Section: Preferences */}
+            <PreferencesSettings />
+          </div>
 
-          <TabsContent value="categorias" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Adicionar Nova Categoria</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <Input
-                    placeholder="Nome da categoria"
-                    value={newCategoriaNome}
-                    onChange={(e) => setNewCategoriaNome(e.target.value)}
-                  />
-                  <select
-                    value={newCategoriaTipo}
-                    onChange={(e) => setNewCategoriaTipo(e.target.value)}
-                    className="px-4 py-2 border rounded-md"
-                  >
-                    <option value="receita">Receita</option>
-                    <option value="despesa">Despesa</option>
-                  </select>
-                  <Button onClick={handleAddCategoria}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Categorias Cadastradas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {categorias.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">Nenhuma categoria cadastrada</p>
-                ) : (
-                  <div className="space-y-3">
-                    {categorias.map((categoria) => (
-                      <div
-                        key={categoria.cat_id}
-                        className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {categoria.cat_nome}
-                          </p>
-                          <p className="text-sm text-gray-500 capitalize">{categoria.cat_tipo}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteCategoria(categoria.cat_id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+          {/* Section: Accounts List */}
+          <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
+            <CardHeader className="px-0 pt-0 pb-6 flex-row justify-between items-center">
+              <div className="flex flex-col">
+                <CardTitle className="text-text-main-light dark:text-text-main-dark text-xl font-bold">Contas Conectadas</CardTitle>
+                <p className="text-sm text-text-secondary-light dark:text-text-secondary-dark">Gerencie suas conexões bancárias.</p>
+              </div>
+              <Button className="flex items-center gap-2 bg-background-light dark:bg-[#2d2438] hover:bg-background-light/70 dark:hover:bg-[#2d2438]/70 text-text-main-light dark:text-text-main-dark font-semibold py-2 px-4 rounded-xl text-sm transition-colors">
+                <Plus className="w-4 h-4" />
+                Adicionar Conta
+              </Button>
+            </CardHeader>
+            <CardContent className="px-0 py-0 space-y-4">
+              {contas.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Nenhuma conta cadastrada</p>
+              ) : (
+                contas.map((conta) => (
+                  <div key={conta.con_id} className="flex items-center justify-between p-4 rounded-xl border border-border-light dark:border-gray-700 bg-card-light dark:bg-[#1e1629]/50 hover:border-primary-new/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "size-12 rounded-full flex items-center justify-center text-white",
+                        conta.con_tipo === 'banco' ? 'bg-blue-600' :
+                        conta.con_tipo === 'cartao' ? 'bg-purple-600' :
+                        conta.con_tipo === 'investimento' ? 'bg-yellow-600' :
+                        conta.con_tipo === 'ativo' ? 'bg-green-600' :
+                        'bg-gray-600'
+                      )}>
+                        {getAccountIcon(conta.con_tipo)}
                       </div>
-                    ))}
+                      <div className="flex flex-col">
+                        <span className="text-text-main-light dark:text-text-main-dark font-bold">{conta.con_nome}</span>
+                        <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark capitalize">{conta.con_tipo} • Final {conta.con_id.slice(-4)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="hidden md:block px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-wide">Ativa</span>
+                      <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary-new">
+                        <Settings className="w-5 h-5" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Footer Actions */}
+          <div className="flex justify-between items-center pt-6 text-sm text-text-secondary-light dark:text-gray-500">
+            <p>FinApp v2.4.0</p>
+            <div className="flex gap-4">
+              <a className="hover:text-primary-new" href="#">Termos de Uso</a>
+              <a className="hover:text-primary-new" href="#">Privacidade</a>
+            </div>
+          </div>
+        </div>
       </div>
     </MainLayout>
   );
