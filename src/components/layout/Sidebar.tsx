@@ -40,12 +40,12 @@ const Sidebar = () => {
     <div className="h-full bg-card-light dark:bg-[#1e1629] border-r border-border-light dark:border-[#2d2438] flex flex-col shrink-0 z-20">
       {/* Logo Area */}
       <div className="p-8 pb-6 flex items-center gap-3">
-        <div className="bg-primary-new/10 flex items-center justify-center rounded-xl w-10 h-10 text-primary-new">
+        <div className="bg-primary/10 flex items-center justify-center rounded-xl w-10 h-10 text-primary">
           <Wallet className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-main-light dark:text-white">Finanças</h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wider">Premium</p>
+          <h1 className="text-xl font-bold tracking-tight text-text-main-light dark:text-white">Ratio</h1>
+          <p className="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wider">Finanças Pro</p>
         </div>
       </div>
       
@@ -60,14 +60,14 @@ const Sidebar = () => {
               className={cn(
                 'flex items-center gap-4 px-4 py-3 rounded-xl transition-all group',
                 isActive
-                  ? 'bg-primary-new text-white shadow-lg shadow-primary-new/20'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
                   : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2d2438] hover:text-text-main-light dark:hover:text-white'
               )}
             >
               <item.icon
                 className={cn(
                   "w-5 h-5",
-                  isActive ? "text-white" : "group-hover:text-primary-new"
+                  isActive ? "text-white" : "group-hover:text-primary"
                 )}
               />
               <span className={cn("text-sm font-medium", isActive && "font-bold")}>
@@ -90,14 +90,14 @@ const Sidebar = () => {
                 className={cn(
                   'flex items-center gap-4 px-4 py-3 rounded-xl transition-all group',
                   isActive
-                    ? 'bg-primary-new text-white shadow-lg shadow-primary-new/20'
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
                     : 'text-text-secondary-light dark:text-text-secondary-dark hover:bg-background-light dark:hover:bg-[#2d2438] hover:text-text-main-light dark:hover:text-white'
                 )}
               >
                 <item.icon
                   className={cn(
                     "w-5 h-5",
-                    isActive ? "text-white" : "group-hover:text-primary-new"
+                    isActive ? "text-white" : "group-hover:text-primary"
                   )}
                 />
                 <span className={cn("text-sm font-medium", isActive && "font-bold")}>
@@ -120,7 +120,7 @@ const Sidebar = () => {
               {user?.email?.split('@')[0] || 'Usuário'}
             </h3>
             <p className="text-xs text-text-secondary-light dark:text-text-secondary-dark truncate">
-              Plano Premium
+              Premium Account
             </p>
           </div>
         </div>
