@@ -54,6 +54,9 @@ const LancamentoModal = ({
   });
 
   useEffect(() => {
+    console.log("[LancamentoModal] Effect triggered. lancamento:", lancamento);
+    console.log("[LancamentoModal] Categories prop:", categories);
+
     if (lancamento) {
       // When editing, derive cat_tipo from lan_valor sign
       const isIncome = lancamento.lan_valor > 0;
@@ -77,7 +80,7 @@ const LancamentoModal = ({
         cat_tipo: 'despesa' // Default for new transactions
       });
     }
-  }, [lancamento, open]);
+  }, [lancamento, open, categories]); // Added categories to dependency array
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +127,8 @@ const LancamentoModal = ({
   };
 
   const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo);
+  console.log("[LancamentoModal] filteredCategories:", filteredCategories);
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -238,12 +243,12 @@ const LancamentoModal = ({
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border shadow-lg rounded-xl">
-                <SelectItem value="true">Confirmado</SelectItem>
-                <SelectItem value="false">Pendente</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectContent className="bg-white border shadow-lg rounded-xl">
+                  <SelectItem value="true">Confirmado</SelectItem>
+                  <SelectItem value="false">Pendente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
           <DialogFooter className="pt-4">
             <Button 
