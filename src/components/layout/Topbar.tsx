@@ -3,6 +3,12 @@
 import { Menu, Search, Bell, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
 
 interface TopbarProps {
@@ -25,8 +31,8 @@ const Topbar = ({ onMenuClick, title }: TopbarProps) => {
           <Menu className="w-6 h-6" />
         </Button>
         <div className="hidden lg:flex flex-col">
-          <h2 className="text-xl font-bold leading-tight">{title}</h2>
-          <p className="text-[10px] text-text-secondary-light dark:text-text-secondary-dark font-bold uppercase tracking-widest">Ratio Financial Systems</p>
+          <h2 className="text-xl font-bold leading-tight tracking-tight">{title}</h2>
+          <p className="text-[9px] text-text-secondary-light dark:text-text-secondary-dark font-black uppercase tracking-[0.2em]">Ratio Financial Systems</p>
         </div>
       </div>
 
@@ -34,7 +40,7 @@ const Topbar = ({ onMenuClick, title }: TopbarProps) => {
         <div className="relative w-full max-w-xs hidden sm:block group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-primary transition-colors" />
           <Input 
-            className="h-10 pl-9 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus-visible:ring-2 focus-visible:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all" 
+            className="h-11 pl-10 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus-visible:ring-2 focus-visible:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all shadow-sm" 
             placeholder="Buscar transações ou contas..." 
             type="text"
           />
@@ -45,20 +51,30 @@ const Topbar = ({ onMenuClick, title }: TopbarProps) => {
             variant="ghost" 
             size="icon" 
             onClick={() => setHideValues(!hideValues)}
-            className="size-10 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
+            className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
             title={hideValues ? "Mostrar valores" : "Ocultar valores"}
           >
             {hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="size-10 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors relative"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#2c2435]"></span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors relative"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-2.5 right-2.5 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#2c2435]"></span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 bg-white dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] rounded-xl mt-2">
+              <div className="p-4 text-center">
+                <p className="text-sm font-bold text-text-main-light dark:text-white">Notificações</p>
+                <p className="text-xs text-text-secondary-light mt-2">Nenhuma notificação no momento</p>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
