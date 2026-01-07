@@ -85,7 +85,7 @@ const Lancamentos = () => {
       setAccounts(aData.data || []);
       
     } catch (error) {
-      console.error(error);
+      console.error("[fetchInitialData] Error fetching initial data:", error);
     } finally {
       setLoading(false);
     }
@@ -94,6 +94,12 @@ const Lancamentos = () => {
   const fetchLancamentos = async (gId: string) => {
     setLoading(true);
     try {
+      console.log("[fetchLancamentos] Current filterType:", filterType);
+      console.log("[fetchLancamentos] Current filterAccount:", filterAccount);
+      console.log("[fetchLancamentos] Current filterCategory:", filterCategory);
+      console.log("[fetchLancamentos] Current filterPeriod:", filterPeriod);
+      console.log("[fetchLancamentos] Current customRange:", customRange);
+
       let query = supabase
         .from('lancamentos')
         .select('*, categorias(cat_nome, cat_tipo), contas(con_nome)')
@@ -133,7 +139,11 @@ const Lancamentos = () => {
       if (filterType !== 'all') query = query.eq('categorias.cat_tipo', filterType);
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error("[fetchLancamentos] Error fetching lancamentos:", error);
+        throw error;
+      }
+      console.log("[fetchLancamentos] Data received:", data); // Log the received data
       setLancamentos(data || []);
     } catch (error) {
       console.error(error);
