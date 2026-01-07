@@ -1,17 +1,7 @@
 "use client";
+
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Wallet, 
-  CreditCard, 
-  BarChart3, 
-  Settings, 
-  LogOut, 
-  UserCircle, 
-  TrendingUp, 
-  Upload 
-} from 'lucide-react';
+import { LayoutDashboard, FileText, Wallet, CreditCard, BarChart3, Settings, LogOut, UserCircle, TrendingUp, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -36,16 +26,18 @@ const Sidebar = () => {
   return (
     <div className="w-72 bg-card-light dark:bg-[#1e1629] border-r border-border-light dark:border-[#2d2438] flex flex-col shrink-0 transition-all duration-300 z-20">
       {/* Logo Area */}
-      <div className="p-8 pb-6 flex items-center gap-3">
-        <div className="bg-primary/10 flex items-center justify-center rounded-xl w-10 h-10 text-primary-new">
-          <Wallet className="w-6 h-6" />
+      <div className="p-6 pb-4 flex flex-col items-center">
+        <div className="bg-white dark:bg-[#1e1629] rounded-xl p-2 mb-4">
+          <img 
+            src="/logo.png" 
+            alt="Logo" 
+            className="h-16 w-16 object-contain"
+          />
         </div>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark">Finanças</h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wider">Premium</p>
-        </div>
+        <h1 className="text-xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark">Finanças</h1>
+        <p className="text-text-secondary-light dark:text-text-secondary-dark text-xs font-medium uppercase tracking-wider">Premium</p>
       </div>
-
+      
       {/* Navigation */}
       <nav className="flex-1 px-4 flex flex-col gap-2 overflow-y-auto">
         {navigation.map((item) => {
@@ -73,7 +65,7 @@ const Sidebar = () => {
             </Link>
           );
         })}
-
+        
         <div className="mt-4 pt-4 border-t border-border-light dark:border-[#2d2438]">
           <p className="px-4 text-xs font-semibold text-text-secondary-light dark:text-text-secondary-dark uppercase mb-2">
             Configurações
@@ -105,7 +97,7 @@ const Sidebar = () => {
           })}
         </div>
       </nav>
-
+      
       {/* User Profile and Sign Out */}
       <div className="p-4 border-t border-border-light dark:border-[#2d2438]">
         <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-background-light dark:hover:bg-[#2d2438] cursor-pointer transition-colors">
