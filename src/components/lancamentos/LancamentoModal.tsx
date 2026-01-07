@@ -47,26 +47,29 @@ const LancamentoModal = ({
     lan_data: new Date().toISOString().split('T')[0],
     lan_descricao: '',
     lan_valor: '',
-    lan_categoria: '', // Should be string ID
-    lan_conta: '',     // Should be string ID
+    lan_categoria: '',
+    lan_conta: '',
     lan_conciliado: false,
     cat_tipo: 'despesa' // This will be 'receita' or 'despesa' based on user selection
   });
 
   useEffect(() => {
+    console.log("[LancamentoModal] Effect triggered. lancamento:", lancamento);
+    console.log("[LancamentoModal] Categories prop:", categories);
+
     if (lancamento) {
+      // When editing, derive cat_tipo from lan_valor sign
       const isIncome = lancamento.lan_valor > 0;
       setFormData({
         lan_data: lancamento.lan_data,
         lan_descricao: lancamento.lan_descricao || '',
         lan_valor: Math.abs(lancamento.lan_valor).toString(), // Always display positive in input
-        lan_categoria: lancamento.lan_categoria || '', // Ensure this is the ID
-        lan_conta: lancamento.lan_conta || '',         // Ensure this is the ID
+        lan_categoria: lancamento.lan_categoria || '',
+        lan_conta: lancamento.lan_conta || '',
         lan_conciliado: lancamento.lan_conciliado || false,
         cat_tipo: isIncome ? 'receita' : 'despesa'
       });
     } else {
-      // For new transactions, reset to default values
       setFormData({
         lan_data: new Date().toISOString().split('T')[0],
         lan_descricao: '',
@@ -74,10 +77,10 @@ const LancamentoModal = ({
         lan_categoria: '',
         lan_conta: '',
         lan_conciliado: false,
-        cat_tipo: 'despesa'
+        cat_tipo: 'despesa' // Default for new transactions
       });
     }
-  }, [lancamento, open, categories, accounts]); // Added accounts to dependency array
+  }, [lancamento, open, categories]); // Added categories to dependency array
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +127,8 @@ const LancamentoModal = ({
   };
 
   const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo);
+  console.log("[LancamentoModal] filteredCategories:", filteredCategories);
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,7 +206,7 @@ const LancamentoModal = ({
                 required
               >
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                  <SelectValue placeholder="Selecione uma conta..." />
+                  <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
                   {accounts.map(acc => (
@@ -218,7 +223,7 @@ const LancamentoModal = ({
                 required
               >
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                  <SelectValue placeholder="Selecione uma categoria..." />
+                  <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
                   {filteredCategories.map(cat => (
