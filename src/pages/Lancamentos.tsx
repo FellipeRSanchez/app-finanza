@@ -135,7 +135,24 @@ const Lancamentos = () => {
   };
 
   const handleDeleteOperation = (id: string, type: 'lancamento' | 'transferencia' | 'pagamento') => {
-    setDeleteTarget({ id, type });
+    const itemToDelete = lancamentos.find(l => l.lan_id === id);
+    if (!itemToDelete) {
+      showError('Lançamento não encontrado para exclusão.');
+      return;
+    }
+
+    let targetId = id;
+    let targetType = type;
+
+    if (itemToDelete.lan_transferencia) {
+      targetId = itemToDelete.lan_transferencia; // Use the transfer ID
+      targetType = 'transferencia';
+    } else if (itemToDelete.lan_pagamento) {
+      targetId = itemToDelete.lan_pagamento; // Use the payment ID
+      targetType = 'pagamento';
+    }
+
+    setDeleteTarget({ id: targetId, type: targetType });
     setDeleteConfirmOpen(true);
   };
 
