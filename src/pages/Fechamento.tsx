@@ -207,9 +207,7 @@ const Fechamento = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-text-main-light dark:text-text-main-dark text-3xl font-black leading-tight tracking-tight">
-                Resumo de {monthNames[selectedMonth - 1]} {selectedYear}
-              </h1>
+              <h1 className="text-text-main-light dark:text-text-main-dark text-3xl font-black leading-tight tracking-tight">Resumo de {monthNames[selectedMonth - 1]} {selectedYear}</h1>
               <span className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border",
                 fechamento?.fem_fechado
