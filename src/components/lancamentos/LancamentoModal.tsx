@@ -58,7 +58,7 @@ const LancamentoModal = ({
       setFormData({
         lan_data: lancamento.lan_data,
         lan_descricao: lancamento.lan_descricao || '',
-        lan_valor: Math.abs(lancamento.lan_valor).toString(),
+        lan_valor: Math.abs(lancamento.lan_valor).toString(), // Ensure positive for input
         lan_categoria: lancamento.lan_categoria || '',
         lan_conta: lancamento.lan_conta || '',
         lan_conciliado: lancamento.lan_conciliado || false,
@@ -120,6 +120,8 @@ const LancamentoModal = ({
     }
   };
 
+  const filteredCategories = categories.filter(c => c.cat_tipo === formData.cat_tipo);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-white border border-border-light shadow-xl p-6 rounded-3xl">
@@ -144,7 +146,13 @@ const LancamentoModal = ({
               <Label className="text-[10px] font-black uppercase text-[#756189]">Tipo</Label>
               <Select 
                 value={formData.cat_tipo} 
-                onValueChange={val => setFormData({...formData, cat_tipo: val})}
+                onValueChange={val => {
+                  setFormData(prev => ({
+                    ...prev, 
+                    cat_tipo: val, 
+                    lan_categoria: '' // Reset category when type changes
+                  }));
+                }}
               >
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue />
@@ -210,7 +218,7 @@ const LancamentoModal = ({
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {categories.filter(c => c.cat_tipo === formData.cat_tipo).map(cat => (
+                  {filteredCategories.map(cat => (
                     <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                   ))}
                 </SelectContent>

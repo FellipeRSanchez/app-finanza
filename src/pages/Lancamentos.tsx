@@ -31,14 +31,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -48,6 +40,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"; // Added import for table components
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -72,7 +72,7 @@ const Lancamentos = () => {
   // Filter Values
   const [filterType, setFilterType] = useState('all');
   const [filterAccount, setFilterAccount] = useState('all');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all'); // Added category filter state
   const [filterPeriod, setFilterPeriod] = useState('thisMonth');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
 
@@ -81,6 +81,12 @@ const Lancamentos = () => {
       fetchInitialData();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (groupId) {
+      fetchLancamentos(groupId);
+    }
+  }, [groupId, filterType, filterAccount, filterCategory, filterPeriod, customRange]); // Re-fetch on filter change
 
   const fetchInitialData = async () => {
     setLoading(true);
@@ -102,7 +108,7 @@ const Lancamentos = () => {
       setCategories(cData.data || []);
       setAccounts(aData.data || []);
       
-      await fetchLancamentos(userData.usu_grupo);
+      // Initial fetch will be triggered by the useEffect above
     } catch (error) {
       console.error(error);
     } finally {
@@ -110,7 +116,7 @@ const Lancamentos = () => {
     }
   };
 
-  const fetchLancamentos = async (gId = groupId) => {
+  const fetchLancamentos = async (gId: string) => {
     setLoading(true);
     try {
       let query = supabase
@@ -122,19 +128,21 @@ const Lancamentos = () => {
       // Apply Period Filter
       const now = new Date();
       let startStr = '';
-      let endStr = format(now, 'yyyy-MM-dd');
+      let endStr = '';
 
       if (filterPeriod === 'thisMonth') {
         startStr = format(startOfMonth(now), 'yyyy-MM-dd');
         endStr = format(endOfMonth(now), 'yyyy-MM-dd');
       } else if (filterPeriod === 'lastMonth') {
-        const lastMonth = subDays(startOfMonth(now), 1);
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         startStr = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
         endStr = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
       } else if (filterPeriod === 'last7') {
         startStr = format(subDays(now, 7), 'yyyy-MM-dd');
+        endStr = format(now, 'yyyy-MM-dd');
       } else if (filterPeriod === 'last30') {
         startStr = format(subDays(now, 30), 'yyyy-MM-dd');
+        endStr = format(now, 'yyyy-MM-dd');
       } else if (filterPeriod === 'custom' && customRange.start && customRange.end) {
         startStr = customRange.start;
         endStr = customRange.end;
@@ -145,7 +153,7 @@ const Lancamentos = () => {
 
       // Other filters
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
-      if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
+      if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory); // Apply category filter
       if (filterType !== 'all') query = query.filter('categorias.cat_tipo', 'eq', filterType);
 
       const { data, error } = await query;
@@ -158,16 +166,16 @@ const Lancamentos = () => {
     }
   };
 
-  const handleApplyFilters = () => fetchLancamentos();
+  const handleApplyFilters = () => fetchLancamentos(groupId);
 
   const handleClearFilters = () => {
     setFilterType('all');
     setFilterAccount('all');
-    setFilterCategory('all');
+    setFilterCategory('all'); // Clear category filter
     setFilterPeriod('thisMonth');
     setCustomRange({ start: '', end: '' });
     setSearchTerm('');
-    fetchLancamentos();
+    // fetchLancamentos will be triggered by useEffect
   };
 
   const handleDelete = async () => {
@@ -177,7 +185,7 @@ const Lancamentos = () => {
       if (error) throw error;
       showSuccess('Lançamento excluído.');
       setDeleteId(null);
-      fetchLancamentos();
+      fetchLancamentos(groupId);
     } catch (error) {
       showError('Erro ao excluir.');
     }
@@ -312,6 +320,22 @@ const Lancamentos = () => {
                     <SelectItem value="all">Todos os tipos</SelectItem>
                     <SelectItem value="receita">Apenas Receitas</SelectItem>
                     <SelectItem value="despesa">Apenas Despesas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category Filter - Problem 3 */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-[#756189]">Categoria</label>
+                <Select value={filterCategory} onValueChange={setFilterCategory}>
+                  <SelectTrigger className="h-11 rounded-xl bg-background-light/50 border-border-light font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border shadow-lg rounded-xl">
+                    <SelectItem value="all">Todas as categorias</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -451,7 +475,7 @@ const Lancamentos = () => {
       <LancamentoModal 
         open={modalOpen}
         onOpenChange={setModalOpen}
-        onSuccess={() => fetchLancamentos()}
+        onSuccess={() => fetchLancamentos(groupId)}
         lancamento={editingLancamento}
         categories={categories}
         accounts={accounts}
