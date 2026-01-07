@@ -127,12 +127,10 @@ const CommonLancamentoModal = ({
     }
   };
 
-  // Improved filtering: Ensure we only show common categories of the selected type
+  // Corrected filtering: Show categories matching the selected type AND not of type 'sistema'
   const filteredCategories = categories.filter(c => 
     c.cat_tipo === formData.cat_tipo && 
-    c.cat_tipo !== 'sistema' &&
-    c.cat_nome !== 'Transferência entre Contas' &&
-    c.cat_nome !== 'Pagamento de Fatura'
+    c.cat_tipo !== 'sistema'
   );
 
   return (
