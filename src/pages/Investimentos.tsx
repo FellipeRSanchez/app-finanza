@@ -5,72 +5,64 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TrendingUp, TrendingDown, Search, Database, Landmark, ShoppingCart, Bitcoin, Building, ArrowUp, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
+
+interface Investment {
+  id: string;
+  user_id: string;
+  symbol: string;
+  name: string;
+  type: string;
+  avg_price: number;
+  current_value: number;
+  performance_value: number;
+  performance_percent: number;
+  positive: boolean;
+  created_at: string;
+}
 
 const Investimentos = () => {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample investment data
-  const investments = [
-    {
-      id: 1,
-      symbol: 'AAPL34',
-      name: 'Apple Inc.',
-      type: 'Ações BDR',
-      avgPrice: 'R$ 42,50',
-      currentValue: 'R$ 18.450,00',
-      performanceValue: '+R$ 2.450,00',
-      performancePercent: '15,31%',
-      positive: true
-    },
-    {
-      id: 2,
-      symbol: 'Tesouro Selic',
-      name: 'Vencimento 2027',
-      type: 'Renda Fixa',
-      avgPrice: '-',
-      currentValue: 'R$ 45.000,00',
-      performanceValue: '+R$ 3.120,00',
-      performancePercent: '7,45%',
-      positive: true
-    },
-    {
-      id: 3,
-      symbol: 'MGLU3',
-      name: 'Magazine Luiza',
-      type: 'Ações Brasil',
-      avgPrice: 'R$ 12,40',
-      currentValue: 'R$ 2.300,00',
-      performanceValue: '-R$ 2.700,00',
-      performancePercent: '54,00%',
-      positive: false
-    },
-    {
-      id: 4,
-      symbol: 'BTC',
-      name: 'Bitcoin',
-      type: 'Cripto',
-      avgPrice: 'R$ 310.000',
-      currentValue: 'R$ 15.600,00',
-      performanceValue: '+R$ 8.900,00',
-      performancePercent: '132,80%',
-      positive: true
-    },
-    {
-      id: 5,
-      symbol: 'HGLG11',
-      name: 'CSHG Logística',
-      type: 'FIIs',
-      avgPrice: 'R$ 162,00',
-      currentValue: 'R$ 51.100,00',
-      performanceValue: '+R$ 680,00',
-      performancePercent: '1,35%',
-      positive: true
+  useEffect(() => {
+    if (user) {
+      fetchInvestments();
     }
-  ];
+  }, [user]);
 
-  const filteredInvestments = investments.filter(investment => 
-    investment.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const fetchInvestments = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('investimentos')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setInvestments(data || []);
+    } catch (error) {
+      console.error('Error fetching investments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  const filteredInvestments = investments.filter(investment =>
+    investment.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
     investment.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -95,6 +87,21 @@ const Investimentos = () => {
       default: return 'bg-gray-50 text-gray-700 ring-gray-700/10 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/30';
     }
   };
+
+  const totalInvestido = investments.reduce((sum, inv) => sum + (inv.avg_price || 0), 0);
+  const saldoAtual = investments.reduce((sum, inv) => sum + (inv.current_value || 0), 0);
+  const rentabilidadeTotal = investments.reduce((sum, inv) => sum + (inv.performance_value || 0), 0);
+  const rentabilidadePercent = totalInvestido > 0 ? (rentabilidadeTotal / totalInvestido) * 100 : 0;
+
+  if (loading) {
+    return (
+      <MainLayout title="Investimentos">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Investimentos">
@@ -131,7 +138,7 @@ const Investimentos = () => {
                 <span className="text-sm font-medium">Total Investido</span>
               </div>
               <span className="mt-2 text-2xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark lg:text-3xl">
-                R$ 120.000,00
+                {formatCurrency(totalInvestido)}
               </span>
             </div>
           </Card>
@@ -145,7 +152,7 @@ const Investimentos = () => {
                 <span className="text-sm font-medium">Saldo Atual</span>
               </div>
               <span className="mt-2 text-2xl font-bold tracking-tight text-text-main-light dark:text-text-main-dark lg:text-3xl">
-                R$ 132.450,00
+                {formatCurrency(saldoAtual)}
               </span>
             </div>
           </Card>
@@ -159,12 +166,12 @@ const Investimentos = () => {
                 <span className="text-sm font-medium">Rentabilidade</span>
               </div>
               <div className="mt-2 flex items-baseline gap-3">
-                <span className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 lg:text-3xl">
-                  +R$ 12.450,00
+                <span className={cn("text-2xl font-bold tracking-tight lg:text-3xl", rentabilidadeTotal >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400')}>
+                  {rentabilidadeTotal >= 0 ? '+' : ''}{formatCurrency(rentabilidadeTotal)}
                 </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400">
-                  <ArrowUp size={12} className="mr-1" />
-                  10,3%
+                <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold", rentabilidadeTotal >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400')}>
+                  {rentabilidadeTotal >= 0 ? <ArrowUp size={12} className="mr-1" /> : <TrendingDown size={12} className="mr-1" />}
+                  {rentabilidadePercent.toFixed(2)}%
                 </span>
               </div>
             </div>
@@ -234,68 +241,76 @@ const Investimentos = () => {
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-border-light dark:divide-[#2d2438]">
-                {filteredInvestments.map((investment) => (
-                  <TableRow
-                    key={investment.id}
-                    className="bg-card-light transition-colors hover:bg-background-light dark:bg-[#1e1629] dark:hover:bg-[#251b30]"
-                  >
-                    <TableCell className="whitespace-nowrap px-6 py-4 font-medium text-text-main-light dark:text-text-main-dark">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background-light text-text-secondary-light dark:bg-[#2d2438] dark:text-text-secondary-dark">
-                          {getIconForType(investment.type)}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold">{investment.symbol}</span>
-                          <span className="text-xs font-normal text-text-secondary-light">{investment.name}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${getTypeColor(
-                          investment.type
-                        )}`}
-                      >
-                        {investment.type}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-6 py-4 text-right">{investment.avgPrice}</TableCell>
-                    <TableCell className="px-6 py-4 text-right font-bold text-text-main-light dark:text-text-main-dark">
-                      {investment.currentValue}
-                    </TableCell>
-                    <TableCell className="px-6 py-4 text-right">
-                      <div className="flex flex-col items-end">
-                        <span
-                          className={`text-sm font-bold ${
-                            investment.positive
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {investment.performanceValue}
-                        </span>
-                        <span
-                          className={`text-xs ${
-                            investment.positive
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
-                        >
-                          {investment.performancePercent}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-6 py-4 text-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-full p-2 text-text-secondary-light hover:bg-background-light hover:text-text-main-light dark:hover:bg-[#2d2438] dark:hover:text-text-main-dark"
-                      >
-                        <MoreVertical className="w-5 h-5" />
-                      </Button>
+                {filteredInvestments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-4 text-text-secondary-light dark:text-text-secondary-dark">
+                      Nenhum investimento encontrado.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredInvestments.map((investment) => (
+                    <TableRow
+                      key={investment.id}
+                      className="bg-card-light transition-colors hover:bg-background-light dark:bg-[#1e1629] dark:hover:bg-[#251b30]"
+                    >
+                      <TableCell className="whitespace-nowrap px-6 py-4 font-medium text-text-main-light dark:text-text-main-dark">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background-light text-text-secondary-light dark:bg-[#2d2438] dark:text-text-secondary-dark">
+                            {getIconForType(investment.type)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">{investment.symbol}</span>
+                            <span className="text-xs font-normal text-text-secondary-light">{investment.name}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6 py-4">
+                        <span
+                          className={cn("inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset", getTypeColor(
+                            investment.type
+                          ))}
+                        >
+                          {investment.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-right">{formatCurrency(investment.avg_price || 0)}</TableCell>
+                      <TableCell className="px-6 py-4 text-right font-bold text-text-main-light dark:text-text-main-dark">
+                        {formatCurrency(investment.current_value || 0)}
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-right">
+                        <div className="flex flex-col items-end">
+                          <span
+                            className={cn("text-sm font-bold",
+                              investment.positive
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
+                            {investment.positive ? '+' : ''}{formatCurrency(investment.performance_value || 0)}
+                          </span>
+                          <span
+                            className={cn("text-xs",
+                              investment.positive
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-red-600 dark:text-red-400'
+                            )}
+                          >
+                            {investment.performance_percent.toFixed(2)}%
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-6 py-4 text-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full p-2 text-text-secondary-light hover:bg-background-light hover:text-text-main-light dark:hover:bg-[#2d2438] dark:hover:text-text-main-dark"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -304,7 +319,7 @@ const Investimentos = () => {
           <div className="flex items-center justify-between border-t border-border-light pt-4 dark:border-[#2d2438]">
             <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
               Mostrando <span className="font-semibold text-text-main-light dark:text-text-main-dark">1-{filteredInvestments.length}</span> de{' '}
-              <span className="font-semibold text-text-main-light dark:text-text-main-dark">{filteredInvestments.length}</span> ativos
+              <span className="font-semibold text-text-main-light dark:text-text-main-dark">{investments.length}</span> ativos
             </span>
             <div className="flex items-center gap-2">
               <Button
