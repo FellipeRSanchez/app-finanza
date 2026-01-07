@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Lançamentos', href: '/lancamentos', icon: FileText },
-  { name: 'Contas', href: '/patrimonio', icon: Wallet },
+  { name: 'Minhas Contas', href: '/patrimonio', icon: Wallet }, // Updated name
   { name: 'Cartões', href: '/cartoes', icon: CreditCard },
   { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
   { name: 'Importação', href: '/importacao-extratos', icon: Upload },

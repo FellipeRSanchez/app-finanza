@@ -24,9 +24,11 @@ import LancamentosHeader from '@/components/lancamentos/LancamentosHeader';
 import LancamentosFilters from '@/components/lancamentos/LancamentosFilters';
 import LancamentosFilterBar from '@/components/lancamentos/LancamentosFilterBar';
 import LancamentosTable from '@/components/lancamentos/LancamentosTable';
+import { useLocation } from 'react-router-dom';
 
 const Lancamentos = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [lancamentos, setLancamentos] = useState<any[]>([]);
@@ -65,6 +67,16 @@ const Lancamentos = () => {
     if (groupId) fetchLancamentos(groupId);
   }, [groupId, filterType, filterAccount, filterCategory, filterPeriod, customRange]);
 
+  // Handle URL parameters for initial filters
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const accountParam = params.get('account');
+    if (accountParam) {
+      setFilterAccount(accountParam);
+      setShowFilters(true); // Open filters if an account is pre-selected
+    }
+  }, [location.search]);
+
   const fetchInitialData = async () => {
     setLoading(true);
     try {
@@ -98,7 +110,35 @@ const Lancamentos = () => {
         .order('lan_data', { ascending: false });
 
       const now = new Date();
-      if (filterPeriod === 'thisMonth') query = query.gte('lan_data', format(startOfMonth(now), 'yyyy-MM-dd')).lte('lan_data', format(endOfMonth(now), 'yyyy-MM-dd'));
+      let startDate: string | null = null;
+      let endDate: string | null = null;
+
+      switch (filterPeriod) {
+        case 'thisMonth':
+          startDate = format(startOfMonth(now), 'yyyy-MM-dd');
+          endDate = format(endOfMonth(now), 'yyyy-MM-dd');
+          break;
+        case 'lastMonth':
+          startDate = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd');
+          endDate = format(endOfMonth(subMonths(now, 1)), 'yyyy-MM-dd');
+          break;
+        case 'last7':
+          startDate = format(subDays(now, 6), 'yyyy-MM-dd');
+          endDate = format(now, 'yyyy-MM-dd');
+          break;
+        case 'last30':
+          startDate = format(subDays(now, 29), 'yyyy-MM-dd');
+          endDate = format(now, 'yyyy-MM-dd');
+          break;
+        case 'custom':
+          if (customRange.start) startDate = customRange.start;
+          if (customRange.end) endDate = customRange.end;
+          break;
+      }
+
+      if (startDate) query = query.gte('lan_data', startDate);
+      if (endDate) query = query.lte('lan_data', endDate);
+
       if (filterAccount !== 'all') query = query.eq('lan_conta', filterAccount);
       if (filterCategory !== 'all') query = query.eq('lan_categoria', filterCategory);
       
@@ -180,13 +220,23 @@ const Lancamentos = () => {
     } catch (error) { showError('Erro ao excluir'); } finally { setDeleteConfirmOpen(false); setLoading(false); }
   };
 
+  const handleClearFilters = () => {
+    setFilterType('all');
+    setFilterAccount('all');
+    setFilterCategory('all');
+    setFilterPeriod('thisMonth');
+    setCustomRange({ start: '', end: '' });
+    setSearchTerm('');
+    fetchLancamentos(groupId); // Re-fetch with cleared filters
+  };
+
   return (
     <MainLayout title="Lançamentos" hideGlobalSearch>
       <div className="max-w-7xl mx-auto flex flex-col gap-6 pb-10">
         <LancamentosHeader onNewLancamentoClick={() => { setEditingLancamento(null); setCommonLancamentoModalOpen(true); }} onNewTransferenciaClick={() => { setEditingTransferencia(null); setTransferenciaModalOpen(true); }} />
         <LancamentosFilters showFilters={showFilters} setShowFilters={setShowFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-        {showFilters && <LancamentosFilterBar filterType={filterType} setFilterType={setFilterType} filterAccount={filterAccount} setFilterAccount={setFilterAccount} filterCategory={filterCategory} setFilterCategory={setFilterCategory} filterPeriod={filterPeriod} setFilterPeriod={setFilterPeriod} customRange={customRange} setCustomRange={setCustomRange} accounts={accounts} categories={categories.filter(c => c.cat_tipo !== 'sistema')} onApplyFilters={() => fetchLancamentos(groupId)} onClearFilters={() => {setFilterType('all'); setFilterPeriod('thisMonth'); fetchLancamentos(groupId);}} />}
-        <LancamentosTable lancamentos={lancamentos.filter(l => l.lan_descricao.toLowerCase().includes(searchTerm.toLowerCase()))} loading={loading} onEditOperation={handleEditOperation} onDeleteOperation={handleDeleteOperation} formatCurrency={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
+        {showFilters && <LancamentosFilterBar filterType={filterType} setFilterType={setFilterType} filterAccount={filterAccount} setFilterAccount={setFilterAccount} filterCategory={filterCategory} setFilterCategory={setFilterCategory} filterPeriod={filterPeriod} setFilterPeriod={setFilterPeriod} customRange={customRange} setCustomRange={setCustomRange} accounts={accounts} categories={categories.filter(c => c.cat_tipo !== 'sistema')} onApplyFilters={() => fetchLancamentos(groupId)} onClearFilters={handleClearFilters} />}
+        <LancamentosTable lancamentos={lancamentos.filter(l => l.lan_descricao.toLowerCase().includes(searchTerm.toLowerCase()) || l.contas?.con_nome.toLowerCase().includes(searchTerm.toLowerCase()))} loading={loading} onEditOperation={handleEditOperation} onDeleteOperation={handleDeleteOperation} formatCurrency={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
       </div>
       <CommonLancamentoModal open={commonLancamentoModalOpen} onOpenChange={setCommonLancamentoModalOpen} onSuccess={() => fetchLancamentos(groupId)} lancamento={editingLancamento} categories={categories} accounts={accounts} userId={user?.id || ''} grupoId={groupId} />
       <TransferenciaModal open={transferenciaModalOpen} onOpenChange={setTransferenciaModalOpen} onSuccess={() => fetchLancamentos(groupId)} transferencia={editingTransferencia} accounts={accounts} grupoId={groupId} systemCategories={systemCategories} />

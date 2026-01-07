@@ -16,19 +16,25 @@ import {
   TrendingDown,
   Droplet,
   Settings,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import ContaModal from '../components/contas/ContaModal';
+import { useNavigate } from 'react-router-dom';
 
 const Patrimonio = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [contas, setContas] = useState<any[]>([]);
   const [groupId, setGroupId] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingConta, setEditingConta] = useState<any>(null);
+  const [hideValues, setHideValues] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -48,32 +54,43 @@ const Patrimonio = () => {
       if (!userData?.usu_grupo) return;
       setGroupId(userData.usu_grupo);
 
-      // 1. Buscar todas as contas
-      const { data: accounts } = await supabase
+      const { data: accounts, error: accountsError } = await supabase
         .from('contas')
         .select('*')
         .eq('con_grupo', userData.usu_grupo);
 
-      // 2. Buscar soma de lançamentos confirmados por conta
-      const { data: transactions } = await supabase
+      if (accountsError) throw accountsError;
+
+      const { data: lancamentos, error: lancamentosError } = await supabase
         .from('lancamentos')
         .select('lan_valor, lan_conta')
         .eq('lan_grupo', userData.usu_grupo)
-        .eq('lan_conciliado', true);
+        .eq('lan_conciliado', true); // Considerar apenas lançamentos conciliados para o saldo real
 
-      // 3. Calcular saldos dinâmicos
+      if (lancamentosError) throw lancamentosError;
+
       const processedContas = (accounts || []).map(acc => {
-        const transacoesConta = transactions?.filter(t => t.lan_conta === acc.con_id) || [];
+        const transacoesConta = lancamentos?.filter(t => t.lan_conta === acc.con_id) || [];
         const somaTransacoes = transacoesConta.reduce((sum, t) => sum + Number(t.lan_valor), 0);
+        
+        let saldoAtual = 0;
+        if (acc.con_tipo === 'cartao') {
+          // Para cartões, o saldo atual é a soma dos lançamentos (dívida)
+          saldoAtual = somaTransacoes;
+        } else {
+          // Para outras contas, é o limite/saldo inicial + soma dos lançamentos
+          saldoAtual = Number(acc.con_limite || 0) + somaTransacoes;
+        }
+        
         return {
           ...acc,
-          saldoAtual: Number(acc.con_limite || 0) + somaTransacoes
+          saldoAtual: saldoAtual
         };
       });
 
       setContas(processedContas);
     } catch (error) {
-      console.error(error);
+      console.error("Erro ao buscar contas:", error);
     } finally {
       setLoading(false);
     }
@@ -90,62 +107,66 @@ const Patrimonio = () => {
   };
 
   const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const totalPatrimonio = contas.reduce((sum, acc) => sum + acc.saldoAtual, 0);
-  const ativosTotais = contas.filter(acc => acc.saldoAtual > 0).reduce((sum, acc) => sum + acc.saldoAtual, 0);
-  const passivosTotais = contas.filter(acc => acc.saldoAtual < 0).reduce((sum, acc) => sum + Math.abs(acc.saldoAtual), 0);
+  const totalSaldoContas = contas
+    .filter(acc => acc.con_tipo !== 'cartao')
+    .reduce((sum, acc) => sum + acc.saldoAtual, 0);
+
+  const dividaCartoes = contas
+    .filter(acc => acc.con_tipo === 'cartao')
+    .reduce((sum, acc) => sum + acc.saldoAtual, 0); // Saldo de cartão já é negativo para dívida
+
+  const handleViewLancamentos = (accountId: string) => {
+    navigate(`/lancamentos?account=${accountId}`);
+  };
 
   return (
     <MainLayout title="Minhas Contas">
       <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
         
-        {/* Hero Section: Patrimônio Líquido */}
-        <Card className="bg-white dark:bg-[#1e1629] rounded-3xl p-8 shadow-soft border-border-light dark:border-[#2d2438] flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-          <div className="flex flex-col gap-2 relative z-10">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                <TrendingUp size={18} />
-              </div>
-              <p className="text-[#756189] text-[10px] font-black uppercase tracking-[0.15em]">Patrimônio Líquido Total</p>
-            </div>
-            <h1 className="text-4xl lg:text-5xl font-black text-[#141118] dark:text-white tracking-tight">
-              {formatCurrency(totalPatrimonio)}
-            </h1>
-          </div>
+        {/* Header com botão de ocultar valores */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-black text-[#141118] dark:text-white tracking-tight">Minhas Contas</h1>
           <Button 
-            onClick={() => { setEditingConta(null); setModalOpen(true); }}
-            className="relative z-10 bg-primary hover:bg-primary/90 text-white rounded-2xl h-14 px-8 font-bold shadow-lg shadow-primary/25 transition-all active:scale-95"
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setHideValues(!hideValues)}
+            className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
+            title={hideValues ? "Mostrar valores" : "Ocultar valores"}
           >
-            <Plus className="w-5 h-5 mr-2" /> Adicionar Conta
+            {hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </Button>
-        </Card>
+        </div>
 
-        {/* Summary Mini Cards */}
+        {/* Cards de Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Saldo Total */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
-            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Ativos</p>
+            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Saldo Total</p>
             <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{formatCurrency(ativosTotais)}</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">{formatCurrency(totalSaldoContas)}</p>
               <ArrowUpRight className="text-emerald-500/30 group-hover:text-emerald-500 transition-colors" size={32} />
             </div>
           </Card>
           
+          {/* Disponível em Contas (mesmo valor do Saldo Total, com destaque) */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
-            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Passivos (Dívidas)</p>
+            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Disponível em Contas</p>
             <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{formatCurrency(passivosTotais)}</p>
-              <ArrowDownRight className="text-rose-500/30 group-hover:text-rose-500 transition-colors" size={32} />
+              <p className="text-2xl font-black text-[#141118] dark:text-white tracking-tight">{formatCurrency(totalSaldoContas)}</p>
+              <Droplet className="text-blue-500/30 group-hover:text-blue-500 transition-colors" size={32} />
             </div>
           </Card>
 
+          {/* Dívida em Cartões */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
-            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Liquidez Imediata</p>
+            <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Dívida em Cartões</p>
             <div className="flex items-center justify-between mt-1">
-              <p className="text-2xl font-black text-[#141118] dark:text-white tracking-tight">{formatCurrency(contas.filter(c => c.con_tipo !== 'investimento').reduce((sum, c) => sum + c.saldoAtual, 0))}</p>
-              <Droplet className="text-blue-500/30 group-hover:text-blue-500 transition-colors" size={32} />
+              <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight">{formatCurrency(dividaCartoes)}</p>
+              <ArrowDownRight className="text-rose-500/30 group-hover:text-rose-500 transition-colors" size={32} />
             </div>
           </Card>
         </div>
@@ -153,7 +174,7 @@ const Patrimonio = () => {
         {/* Accounts Grid */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-black text-[#141118] dark:text-white">Suas Contas</h3>
+            <h3 className="text-xl font-black text-[#141118] dark:text-white">Detalhes das Contas</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -169,10 +190,10 @@ const Patrimonio = () => {
             ) : (
               contas.map((conta) => {
                 const Icon = getAccountIcon(conta.con_tipo);
+                const isNegative = conta.saldoAtual < 0;
                 return (
                   <Card 
                     key={conta.con_id}
-                    onClick={() => { setEditingConta(conta); setModalOpen(true); }}
                     className="group bg-white dark:bg-[#1e1629] rounded-3xl p-6 shadow-soft border-border-light dark:border-[#2d2438] hover:shadow-hover hover:border-primary/20 transition-all cursor-pointer flex flex-col justify-between"
                   >
                     <div className="flex items-start justify-between">
@@ -185,14 +206,21 @@ const Patrimonio = () => {
                           <p className="text-[10px] font-black uppercase tracking-widest text-[#756189]">{conta.con_tipo}</p>
                         </div>
                       </div>
-                      <Settings size={16} className="text-gray-300 group-hover:text-primary transition-colors" />
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleViewLancamentos(conta.con_id); }}>
+                          <FileText className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingConta(conta); setModalOpen(true); }}>
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="mt-6">
                       <p className="text-[9px] font-black uppercase tracking-widest text-[#756189] mb-1">Saldo Atual</p>
                       <p className={cn(
                         "text-2xl font-black tracking-tight",
-                        conta.saldoAtual > 0 ? "text-emerald-600" : conta.saldoAtual < 0 ? "text-rose-600" : "text-gray-400"
+                        isNegative ? "text-rose-600" : "text-emerald-600"
                       )}>
                         {formatCurrency(conta.saldoAtual)}
                       </p>
