@@ -45,14 +45,14 @@ const ContaModal = ({
   });
 
   useEffect(() => {
-    if (conta) {
+    if (open && conta) {
       setFormData({
         con_nome: conta.con_nome || '',
         con_tipo: conta.con_tipo || 'banco',
         con_limite: (conta.con_limite || 0).toString(),
         con_banco: conta.con_banco || ''
       });
-    } else {
+    } else if (open && !conta) {
       setFormData({
         con_nome: '',
         con_tipo: 'banco',
