@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -20,14 +20,50 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [investmentAccounts, setInvestmentAccounts] = useState<any[]>([]);
   
-  const [symbol, setSymbol] = useState('');
-  const [name, setName] = useState('');
-  const [type, setType] = useState('');
-  const [avgPrice, setAvgPrice] = useState('');
-  const [currentValue, setCurrentValue] = useState('');
-  const [performanceValue, setPerformanceValue] = useState('');
-  const [performancePercent, setPerformancePercent] = useState('');
+  const [invSymbol, setInvSymbol] = useState('');
+  const [invName, setInvName] = useState('');
+  const [invType, setInvType] = useState('');
+  const [invAvgPrice, setInvAvgPrice] = useState('');
+  const [invCurrentValue, setInvCurrentValue] = useState('');
+  const [invPerformanceValue, setInvPerformanceValue] = useState('');
+  const [invPerformancePercent, setInvPerformancePercent] = useState('');
+  const [invContaId, setInvContaId] = useState('');
+
+  useEffect(() => {
+    if (user && isOpen) {
+      fetchInvestmentAccounts();
+    }
+  }, [user, isOpen]);
+
+  const fetchInvestmentAccounts = async () => {
+    if (!user) return;
+    try {
+      const { data: userData } = await supabase
+        .from('usuarios')
+        .select('usu_grupo')
+        .eq('usu_id', user.id)
+        .single();
+
+      if (!userData?.usu_grupo) return;
+
+      const { data, error } = await supabase
+        .from('contas')
+        .select('con_id, con_nome')
+        .eq('con_grupo', userData.usu_grupo)
+        .eq('con_tipo', 'investimento'); // Fetch only accounts of type 'investimento'
+
+      if (error) throw error;
+      setInvestmentAccounts(data || []);
+      if (data && data.length > 0 && !invContaId) {
+        setInvContaId(data[0].con_id); // Set default if not already set
+      }
+    } catch (error) {
+      console.error('Error fetching investment accounts:', error);
+      showError('Erro ao carregar contas de investimento.');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,15 +71,15 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
     
     try {
       // Validate inputs
-      if (!symbol || !name || !type) {
+      if (!invSymbol || !invName || !invType || !invContaId) {
         showError('Por favor, preencha todos os campos obrigatórios.');
         return;
       }
       
-      const avgPriceNum = parseFloat(avgPrice) || 0;
-      const currentValueNum = parseFloat(currentValue) || 0;
-      const performanceValueNum = parseFloat(performanceValue) || 0;
-      const performancePercentNum = parseFloat(performancePercent) || 0;
+      const avgPriceNum = parseFloat(invAvgPrice) || 0;
+      const currentValueNum = parseFloat(invCurrentValue) || 0;
+      const performanceValueNum = parseFloat(invPerformanceValue) || 0;
+      const performancePercentNum = parseFloat(invPerformancePercent) || 0;
       
       // Calculate positive status
       const positive = performanceValueNum >= 0;
@@ -53,14 +89,15 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
         .from('investimentos')
         .insert({
           user_id: user?.id,
-          symbol,
-          name,
-          type,
-          avg_price: avgPriceNum,
-          current_value: currentValueNum,
-          performance_value: performanceValueNum,
-          performance_percent: performancePercentNum,
-          positive
+          inv_conta_id: invContaId,
+          inv_symbol: invSymbol,
+          inv_name: invName,
+          inv_type: invType,
+          inv_avg_price: avgPriceNum,
+          inv_current_value: currentValueNum,
+          inv_performance_value: performanceValueNum,
+          inv_performance_percent: performancePercentNum,
+          inv_positive: positive
         });
         
       if (error) throw error;
@@ -70,13 +107,14 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
       setIsOpen(false); // Close the dialog
       
       // Reset form
-      setSymbol('');
-      setName('');
-      setType('');
-      setAvgPrice('');
-      setCurrentValue('');
-      setPerformanceValue('');
-      setPerformancePercent('');
+      setInvSymbol('');
+      setInvName('');
+      setInvType('');
+      setInvAvgPrice('');
+      setInvCurrentValue('');
+      setInvPerformanceValue('');
+      setInvPerformancePercent('');
+      setInvContaId('');
     } catch (error) {
       console.error('Error adding investment:', error);
       showError('Erro ao adicionar investimento. Por favor, tente novamente.');
@@ -99,11 +137,25 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="symbol" className="text-text-main-light dark:text-text-main-dark">Símbolo *</Label>
+            <Label htmlFor="invContaId" className="text-text-main-light dark:text-text-main-dark">Conta de Investimento *</Label>
+            <Select value={invContaId} onValueChange={setInvContaId} required>
+              <SelectTrigger className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark">
+                <SelectValue placeholder="Selecione a conta de investimento" />
+              </SelectTrigger>
+              <SelectContent>
+                {investmentAccounts.map(account => (
+                  <SelectItem key={account.con_id} value={account.con_id}>{account.con_nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="invSymbol" className="text-text-main-light dark:text-text-main-dark">Símbolo *</Label>
             <Input
-              id="symbol"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
+              id="invSymbol"
+              value={invSymbol}
+              onChange={(e) => setInvSymbol(e.target.value)}
               placeholder="Ex: AAPL34"
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
               required
@@ -111,11 +163,11 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-text-main-light dark:text-text-main-dark">Nome *</Label>
+            <Label htmlFor="invName" className="text-text-main-light dark:text-text-main-dark">Nome *</Label>
             <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="invName"
+              value={invName}
+              onChange={(e) => setInvName(e.target.value)}
               placeholder="Ex: Apple Inc."
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
               required
@@ -123,8 +175,8 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="type" className="text-text-main-light dark:text-text-main-dark">Tipo *</Label>
-            <Select value={type} onValueChange={setType} required>
+            <Label htmlFor="invType" className="text-text-main-light dark:text-text-main-dark">Tipo *</Label>
+            <Select value={invType} onValueChange={setInvType} required>
               <SelectTrigger className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark">
                 <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
@@ -139,48 +191,48 @@ const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="avgPrice" className="text-text-main-light dark:text-text-main-dark">Preço Médio (R$)</Label>
+            <Label htmlFor="invAvgPrice" className="text-text-main-light dark:text-text-main-dark">Preço Médio (R$)</Label>
             <Input
-              id="avgPrice"
+              id="invAvgPrice"
               type="number"
-              value={avgPrice}
-              onChange={(e) => setAvgPrice(e.target.value)}
+              value={invAvgPrice}
+              onChange={(e) => setInvAvgPrice(e.target.value)}
               placeholder="Ex: 42.50"
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="currentValue" className="text-text-main-light dark:text-text-main-dark">Saldo Atual (R$)</Label>
+            <Label htmlFor="invCurrentValue" className="text-text-main-light dark:text-text-main-dark">Saldo Atual (R$)</Label>
             <Input
-              id="currentValue"
+              id="invCurrentValue"
               type="number"
-              value={currentValue}
-              onChange={(e) => setCurrentValue(e.target.value)}
+              value={invCurrentValue}
+              onChange={(e) => setInvCurrentValue(e.target.value)}
               placeholder="Ex: 18450.00"
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="performanceValue" className="text-text-main-light dark:text-text-main-dark">Rentabilidade (R$)</Label>
+            <Label htmlFor="invPerformanceValue" className="text-text-main-light dark:text-text-main-dark">Rentabilidade (R$)</Label>
             <Input
-              id="performanceValue"
+              id="invPerformanceValue"
               type="number"
-              value={performanceValue}
-              onChange={(e) => setPerformanceValue(e.target.value)}
+              value={invPerformanceValue}
+              onChange={(e) => setInvPerformanceValue(e.target.value)}
               placeholder="Ex: 2450.00"
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
             />
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="performancePercent" className="text-text-main-light dark:text-text-main-dark">Rentabilidade (%)</Label>
+            <Label htmlFor="invPerformancePercent" className="text-text-main-light dark:text-text-main-dark">Rentabilidade (%)</Label>
             <Input
-              id="performancePercent"
+              id="invPerformancePercent"
               type="number"
-              value={performancePercent}
-              onChange={(e) => setPerformancePercent(e.target.value)}
+              value={invPerformancePercent}
+              onChange={(e) => setInvPerformancePercent(e.target.value)}
               placeholder="Ex: 15.31"
               className="bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438] text-text-main-light dark:text-text-main-dark"
             />

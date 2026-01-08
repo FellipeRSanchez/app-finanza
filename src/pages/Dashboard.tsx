@@ -87,7 +87,7 @@ const Dashboard = () => {
 
       setContas(accountsData || []);
       setMetrics({
-        caixaAtual: accountsData?.reduce((acc, curr) => acc + (Number(curr.con_limite) || 0), 0) || 0,
+        caixaAtual: accountsData?.filter(acc => acc.con_tipo !== 'cartao').reduce((acc, curr) => acc + (Number(curr.con_limite) || 0), 0) || 0, // Only non-credit card accounts
         receitasMes: income,
         despesasMes: expense,
         resultadoMes: income - expense
@@ -210,10 +210,10 @@ const Dashboard = () => {
           </Button>
           <Button 
             variant="outline" 
-            onClick={() => navigate('/patrimonio')}
+            onClick={() => navigate('/patrimonio')} // Updated to navigate to Patrimonio
             className="rounded-xl h-12 px-6 font-bold border-border-light dark:border-[#2d2438] bg-white dark:bg-[#1e1629] text-[#756189] hover:text-primary transition-all"
           >
-            <PlusSquare className="w-5 h-5 mr-2" /> Adicionar Conta
+            <PlusSquare className="w-5 h-5 mr-2" /> Adicionar Ativo
           </Button>
         </div>
 
