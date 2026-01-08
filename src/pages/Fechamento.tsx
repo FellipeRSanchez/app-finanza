@@ -27,7 +27,7 @@ interface CategoryTotal {
   type: 'receita' | 'despesa'; // Changed 'tipo' to 'type' for consistency
 }
 
-const Fechamento = () => {
+const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
   const [observacoes, setObservacoes] = useState('');
@@ -236,6 +236,7 @@ const Fechamento = () => {
   const resultado = totalReceitas - totalDespesas;
 
   const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -270,7 +271,7 @@ const Fechamento = () => {
                 {fechamento?.fem_fechado ? 'Mês Fechado' : 'Mês Aberto'}
               </span>
             </div>
-            <p className="text-text-secondary-light dark:text-text-secondary-dark text-base font-normal">
+            <p className="text-text-secondary-light dark:text-gray-400 text-base font-normal">
               Confira os lançamentos e consolide o resultado antes de fechar.
             </p>
           </div>

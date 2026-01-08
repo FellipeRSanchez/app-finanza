@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const Investimentos = () => {
+const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [investimentos, setInvestimentos] = useState<any[]>([]);
@@ -80,6 +80,7 @@ const Investimentos = () => {
   };
 
   const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 

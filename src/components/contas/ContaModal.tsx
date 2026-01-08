@@ -28,6 +28,7 @@ interface ContaModalProps {
   onSuccess: () => void;
   conta?: any;
   grupoId: string;
+  hideValues?: boolean; // Added hideValues prop
 }
 
 const ContaModal = ({ 
@@ -35,14 +36,17 @@ const ContaModal = ({
   onOpenChange, 
   onSuccess, 
   conta, 
-  grupoId
+  grupoId,
+  hideValues
 }: ContaModalProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     con_nome: '',
     con_tipo: 'banco',
     con_limite: '0', // Usado como saldo inicial
-    con_banco: ''
+    con_banco: '',
+    con_data_fechamento: '', // New field
+    con_data_vencimento: '', // New field
   });
 
   // Definir tipos de conta predefinidos com seus rótulos de exibição
@@ -55,19 +59,22 @@ const ContaModal = ({
 
   useEffect(() => {
     if (open && conta) {
-      console.log('Conta recebida:', conta); // Log para depuração
       setFormData({
         con_nome: conta.con_nome || '',
         con_tipo: conta.con_tipo || 'banco',
         con_limite: (conta.con_limite || 0).toString(),
-        con_banco: conta.con_banco || ''
+        con_banco: conta.con_banco || '',
+        con_data_fechamento: (conta.con_data_fechamento || '').toString(),
+        con_data_vencimento: (conta.con_data_vencimento || '').toString(),
       });
     } else if (open && !conta) {
       setFormData({
         con_nome: '',
         con_tipo: 'banco',
         con_limite: '0',
-        con_banco: ''
+        con_banco: '',
+        con_data_fechamento: '',
+        con_data_vencimento: '',
       });
     }
   }, [conta, open]);
@@ -77,13 +84,21 @@ const ContaModal = ({
     setLoading(true);
 
     try {
-      const payload = {
+      const payload: any = {
         con_nome: formData.con_nome,
         con_tipo: formData.con_tipo,
         con_limite: parseFloat(formData.con_limite),
         con_banco: formData.con_banco,
         con_grupo: grupoId
       };
+
+      if (formData.con_tipo === 'cartao') {
+        payload.con_data_fechamento = parseInt(formData.con_data_fechamento);
+        payload.con_data_vencimento = parseInt(formData.con_data_vencimento);
+      } else {
+        payload.con_data_fechamento = null;
+        payload.con_data_vencimento = null;
+      }
 
       if (conta) {
         const { error } = await supabase
@@ -169,6 +184,37 @@ const ContaModal = ({
               className="rounded-xl border-border-light bg-background-light/50 font-bold"
             />
           </div>
+
+          {formData.con_tipo === 'cartao' && (
+            <>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-[#756189]">Dia Fechamento Fatura</Label>
+                <Input 
+                  type="number" 
+                  min="1" 
+                  max="31"
+                  value={formData.con_data_fechamento} 
+                  onChange={e => setFormData({...formData, con_data_fechamento: e.target.value})}
+                  placeholder="Ex: 25"
+                  required={formData.con_tipo === 'cartao'}
+                  className="rounded-xl border-border-light bg-background-light/50 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-[#756189]">Dia Vencimento Fatura</Label>
+                <Input 
+                  type="number" 
+                  min="1" 
+                  max="31"
+                  value={formData.con_data_vencimento} 
+                  onChange={e => setFormData({...formData, con_data_vencimento: e.target.value})}
+                  placeholder="Ex: 05"
+                  required={formData.con_tipo === 'cartao'}
+                  className="rounded-xl border-border-light bg-background-light/50 font-bold"
+                />
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Instituição (Opcional)</Label>

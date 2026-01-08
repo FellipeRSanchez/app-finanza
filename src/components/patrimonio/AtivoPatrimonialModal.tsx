@@ -29,13 +29,15 @@ interface AtivoPatrimonialModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   ativo?: any;
+  hideValues?: boolean; // Added hideValues prop
 }
 
 const AtivoPatrimonialModal = ({ 
   open, 
   onOpenChange, 
   onSuccess, 
-  ativo 
+  ativo,
+  hideValues
 }: AtivoPatrimonialModalProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);

@@ -29,13 +29,15 @@ interface PecuariaModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   pecuariaItem?: any;
+  hideValues?: boolean; // Added hideValues prop
 }
 
 const PecuariaModal = ({ 
   open, 
   onOpenChange, 
   onSuccess, 
-  pecuariaItem 
+  pecuariaItem,
+  hideValues
 }: PecuariaModalProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);

@@ -7,14 +7,17 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MadeWithDyad } from '@/components/made-with-dyad';
+import React from 'react';
 
 interface MainLayoutProps {
   children: React.ReactNode;
   title: string;
   hideGlobalSearch?: boolean;
+  hideValues: boolean; // Now a prop
+  setHideValues: (hide: boolean) => void; // Now a prop
 }
 
-const MainLayout = ({ children, title, hideGlobalSearch }: MainLayoutProps) => {
+const MainLayout = ({ children, title, hideGlobalSearch, hideValues, setHideValues }: MainLayoutProps) => {
   const { loading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -57,13 +60,15 @@ const MainLayout = ({ children, title, hideGlobalSearch }: MainLayoutProps) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar 
-          onMenuClick={() => setSidebarOpen(true)} 
-          title={title} 
+        <Topbar
+          onMenuClick={() => setSidebarOpen(true)}
+          title={title}
           hideGlobalSearch={hideGlobalSearch}
+          hideValues={hideValues}
+          setHideValues={setHideValues}
         />
         <main className="flex-1 overflow-y-auto p-6">
-          {children}
+          {children} {/* Render children directly, hideValues is passed to Route elements */}
           <MadeWithDyad />
         </main>
       </div>

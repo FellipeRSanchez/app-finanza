@@ -15,7 +15,7 @@ interface CategoryStats {
   type: 'receita' | 'despesa'; // Add type to stats
 }
 
-const Relatorios = () => {
+const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('monthly');
   const [reportType, setReportType] = useState<'income' | 'expenses'>('expenses');
@@ -94,6 +94,7 @@ const Relatorios = () => {
   };
 
   const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',

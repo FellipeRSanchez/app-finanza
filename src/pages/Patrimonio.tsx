@@ -51,7 +51,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const Patrimonio = () => {
+const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -61,7 +61,6 @@ const Patrimonio = () => {
   const [pecuaria, setPecuaria] = useState<any[]>([]);
   const [emprestimos, setEmprestimos] = useState<any[]>([]);
   const [groupId, setGroupId] = useState('');
-  const [hideValues, setHideValues] = useState(false);
 
   // Modals states
   const [contaModalOpen, setContaModalOpen] = useState(false);
@@ -257,21 +256,13 @@ const Patrimonio = () => {
   };
 
   return (
-    <MainLayout title="Patrimônio">
+    <>
       <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
         
         {/* Header com botão de ocultar valores */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-black text-[#141118] dark:text-white tracking-tight">Patrimônio</h1>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setHideValues(!hideValues)}
-            className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
-            title={hideValues ? "Mostrar valores" : "Ocultar valores"}
-          >
-            {hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </Button>
+          {/* The Eye/EyeOff button is now in Topbar, so it's removed from here */}
         </div>
 
         {/* Cards de Resumo */}
@@ -761,24 +752,28 @@ const Patrimonio = () => {
         onSuccess={fetchPatrimonioData}
         conta={editingConta}
         grupoId={groupId}
+        hideValues={hideValues}
       />
       <AtivoPatrimonialModal
         open={ativoPatrimonialModalOpen}
         onOpenChange={setAtivoPatrimonialModalOpen}
         onSuccess={fetchPatrimonioData}
         ativo={editingAtivoPatrimonial}
+        hideValues={hideValues}
       />
       <PecuariaModal
         open={pecuariaModalOpen}
         onOpenChange={setPecuariaModalOpen}
         onSuccess={fetchPatrimonioData}
         pecuariaItem={editingPecuaria}
+        hideValues={hideValues}
       />
       <EmprestimoModal
         open={emprestimoModalOpen}
         onOpenChange={setEmprestimoModalOpen}
         onSuccess={fetchPatrimonioData}
         emprestimo={editingEmprestimo}
+        hideValues={hideValues}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -796,7 +791,7 @@ const Patrimonio = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </>
   );
 };
 

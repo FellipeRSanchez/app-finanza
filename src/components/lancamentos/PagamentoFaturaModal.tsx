@@ -20,6 +20,23 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { showSuccess, showError } from '@/utils/toast';
+import { format } from 'date-fns';
+
+interface CardAccount {
+  con_id: string;
+  con_nome: string;
+  con_tipo: string;
+  con_banco: string | null;
+  con_limite: number;
+  con_data_fechamento: number | null;
+  con_data_vencimento: number | null;
+  saldoAtual: number;
+  faturaAtual: number;
+  faturaVencimento: Date | null;
+  faturaFechamento: Date | null;
+  faturaStatus: 'aberta' | 'fechada' | 'paga' | 'vencida';
+  diasParaVencimento: number | null;
+}
 
 interface PagamentoFaturaModalProps {
   open: boolean;
@@ -27,10 +44,11 @@ interface PagamentoFaturaModalProps {
   onSuccess: () => void;
   pagamento?: any;
   accounts: any[];
-  creditCardAccounts: any[];
+  creditCardAccounts: CardAccount[];
   grupoId: string;
   systemCategories: { transferenciaId: string | null; pagamentoFaturaId: string | null };
-  initialCardId?: string;
+  initialCard?: CardAccount; // Changed to CardAccount
+  hideValues?: boolean; // Added hideValues prop
 }
 
 const PagamentoFaturaModal = ({ 
@@ -42,7 +60,8 @@ const PagamentoFaturaModal = ({
   creditCardAccounts = [],
   grupoId,
   systemCategories,
-  initialCardId
+  initialCard,
+  hideValues
 }: PagamentoFaturaModalProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -64,16 +83,20 @@ const PagamentoFaturaModal = ({
           pag_conciliado: !!pagamento.pag_conciliado,
         });
       } else {
+        // Pre-fill with initialCard data if available
+        const defaultCardId = initialCard?.con_id || (creditCardAccounts.length > 0 ? creditCardAccounts[0].con_id : '');
+        const defaultCard = creditCardAccounts.find(card => card.con_id === defaultCardId);
+        
         setFormData({
           pag_data: new Date().toISOString().split('T')[0],
-          pag_valor: '',
+          pag_valor: defaultCard ? Math.abs(defaultCard.faturaAtual).toFixed(2) : '', // Pre-fill with current invoice
           pag_conta_origem: accounts.filter(acc => acc.con_tipo !== 'cartao').length > 0 ? accounts.filter(acc => acc.con_tipo !== 'cartao')[0].con_id : '',
-          pag_conta_destino: initialCardId || (creditCardAccounts.length > 0 ? creditCardAccounts[0].con_id : ''),
+          pag_conta_destino: defaultCardId,
           pag_conciliado: false,
         });
       }
     }
-  }, [pagamento, open, accounts, creditCardAccounts, initialCardId]);
+  }, [pagamento, open, accounts, creditCardAccounts, initialCard]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +205,15 @@ const PagamentoFaturaModal = ({
     }
   };
 
+  const selectedCreditCard = creditCardAccounts.find(card => card.con_id === formData.pag_conta_destino);
+  const currentInvoiceValue = selectedCreditCard ? Math.abs(selectedCreditCard.faturaAtual) : 0;
+  const invoiceDueDate = selectedCreditCard?.faturaVencimento ? format(selectedCreditCard.faturaVencimento, 'dd/MM/yyyy') : 'N/A';
+
+  const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-white border border-border-light shadow-xl p-6 rounded-3xl">
@@ -196,26 +228,8 @@ const PagamentoFaturaModal = ({
             <Input type="date" value={formData.pag_data} onChange={e => setFormData({...formData, pag_data: e.target.value})} required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-[#756189]">Valor</Label>
-            <Input type="number" step="0.01" value={formData.pag_valor} onChange={e => setFormData({...formData, pag_valor: e.target.value})} placeholder="0,00" required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Origem</Label>
-              <Select value={formData.pag_conta_origem} onValueChange={val => setFormData({...formData, pag_conta_origem: val})} required>
-                <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg rounded-xl">
-                  {accounts.filter(a => a.con_tipo !== 'cartao').map(acc => (
-                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-[#756189]">Cartão de Destino</Label>
-              <Select value={formData.pag_conta_destino} onValueChange={val => setFormData({...formData, pag_conta_destino: val})} required>
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Cartão de Destino</Label>
+            <Select value={formData.pag_conta_destino} onValueChange={val => setFormData({...formData, pag_conta_destino: val})} required>
                 <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
@@ -225,7 +239,34 @@ const PagamentoFaturaModal = ({
                   ))}
                 </SelectContent>
               </Select>
+          </div>
+          {selectedCreditCard && (
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-[#756189]">Fatura Atual ({invoiceDueDate})</Label>
+              <Input 
+                type="text" 
+                value={formatCurrency(currentInvoiceValue)} 
+                disabled 
+                className="rounded-xl border-border-light bg-background-light/50 font-bold text-text-main-light dark:text-text-main-dark" 
+              />
             </div>
+          )}
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Valor do Pagamento</Label>
+            <Input type="number" step="0.01" value={formData.pag_valor} onChange={e => setFormData({...formData, pag_valor: e.target.value})} placeholder="0,00" required className="rounded-xl border-border-light bg-background-light/50 font-bold" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-[#756189]">Conta de Origem</Label>
+            <Select value={formData.pag_conta_origem} onValueChange={val => setFormData({...formData, pag_conta_origem: val})} required>
+                <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white border shadow-lg rounded-xl">
+                  {accounts.filter(a => a.con_tipo !== 'cartao').map(acc => (
+                    <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
           </div>
           <DialogFooter className="pt-4">
             <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-bold shadow-lg shadow-primary/25">

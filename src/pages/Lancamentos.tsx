@@ -26,7 +26,7 @@ import LancamentosFilterBar from '@/components/lancamentos/LancamentosFilterBar'
 import LancamentosTable from '@/components/lancamentos/LancamentosTable';
 import { useLocation } from 'react-router-dom';
 
-const Lancamentos = () => {
+const Lancamentos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
@@ -231,23 +231,23 @@ const Lancamentos = () => {
   };
 
   return (
-    <MainLayout title="Lançamentos" hideGlobalSearch>
+    <>
       <div className="max-w-7xl mx-auto flex flex-col gap-6 pb-10">
         <LancamentosHeader onNewLancamentoClick={() => { setEditingLancamento(null); setCommonLancamentoModalOpen(true); }} onNewTransferenciaClick={() => { setEditingTransferencia(null); setTransferenciaModalOpen(true); }} />
         <LancamentosFilters showFilters={showFilters} setShowFilters={setShowFilters} searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
         {showFilters && <LancamentosFilterBar filterType={filterType} setFilterType={setFilterType} filterAccount={filterAccount} setFilterAccount={setFilterAccount} filterCategory={filterCategory} setFilterCategory={setFilterCategory} filterPeriod={filterPeriod} setFilterPeriod={setFilterPeriod} customRange={customRange} setCustomRange={setCustomRange} accounts={accounts} categories={categories.filter(c => c.cat_tipo !== 'sistema')} onApplyFilters={() => fetchLancamentos(groupId)} onClearFilters={handleClearFilters} />}
-        <LancamentosTable lancamentos={lancamentos.filter(l => l.lan_descricao.toLowerCase().includes(searchTerm.toLowerCase()) || l.contas?.con_nome.toLowerCase().includes(searchTerm.toLowerCase()))} loading={loading} onEditOperation={handleEditOperation} onDeleteOperation={handleDeleteOperation} formatCurrency={(v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
+        <LancamentosTable lancamentos={lancamentos.filter(l => l.lan_descricao.toLowerCase().includes(searchTerm.toLowerCase()) || l.contas?.con_nome.toLowerCase().includes(searchTerm.toLowerCase()))} loading={loading} onEditOperation={handleEditOperation} onDeleteOperation={handleDeleteOperation} formatCurrency={(v) => { if (hideValues) return '••••••'; return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }} />
       </div>
       <CommonLancamentoModal open={commonLancamentoModalOpen} onOpenChange={setCommonLancamentoModalOpen} onSuccess={() => fetchLancamentos(groupId)} lancamento={editingLancamento} categories={categories} accounts={accounts} userId={user?.id || ''} grupoId={groupId} />
       <TransferenciaModal open={transferenciaModalOpen} onOpenChange={setTransferenciaModalOpen} onSuccess={() => fetchLancamentos(groupId)} transferencia={editingTransferencia} accounts={accounts} grupoId={groupId} systemCategories={systemCategories} />
-      <PagamentoFaturaModal open={pagamentoFaturaModalOpen} onOpenChange={setPagamentoFaturaModalOpen} onSuccess={() => fetchLancamentos(groupId)} pagamento={editingPagamentoFatura} accounts={accounts} creditCardAccounts={creditCardAccounts} grupoId={groupId} systemCategories={systemCategories} />
+      <PagamentoFaturaModal open={pagamentoFaturaModalOpen} onOpenChange={setPagamentoFaturaModalOpen} onSuccess={() => fetchLancamentos(groupId)} pagamento={editingPagamentoFatura} accounts={accounts} creditCardAccounts={creditCardAccounts} grupoId={groupId} systemCategories={systemCategories} hideValues={hideValues} />
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-white rounded-3xl border">
           <AlertDialogHeader><AlertDialogTitle className="font-black text-[#141118]">Excluir Operação?</AlertDialogTitle><AlertDialogDescription>Esta ação removerá o(s) lançamento(s) permanentemente.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDelete} className="bg-rose-600 text-white rounded-xl">Excluir</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </>
   );
 };
 

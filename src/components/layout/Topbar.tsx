@@ -15,11 +15,11 @@ interface TopbarProps {
   onMenuClick: () => void;
   title: string;
   hideGlobalSearch?: boolean;
+  hideValues: boolean;
+  setHideValues: (hide: boolean) => void;
 }
 
-const Topbar = ({ onMenuClick, title, hideGlobalSearch = false }: TopbarProps) => {
-  const [hideValues, setHideValues] = useState(false);
-
+const Topbar = ({ onMenuClick, title, hideGlobalSearch = false, hideValues, setHideValues }: TopbarProps) => {
   return (
     <header className="h-20 flex items-center justify-between px-8 py-4 bg-white/80 dark:bg-[#191022]/90 backdrop-blur-md sticky top-0 z-50 border-b border-[#e0dbe6] dark:border-[#3a3045]">
       <div className="flex items-center gap-4">

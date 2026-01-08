@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, ArrowDown, Check, Info, CloudUpload } from 'lucide-react';
 import { useState } from 'react';
 
-const ImportacaoExtratos = () => {
+const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -37,7 +37,7 @@ const ImportacaoExtratos = () => {
       date: '12/10/2023',
       description: 'Uber *Trip Help.Uber',
       category: 'Transporte',
-      value: '-R$ 24,90',
+      value: -24.90,
       status: 'Novo'
     },
     {
@@ -45,7 +45,7 @@ const ImportacaoExtratos = () => {
       date: '12/10/2023',
       description: 'Spotify Family',
       category: 'Assinaturas',
-      value: '-R$ 34,90',
+      value: -34.90,
       status: 'Duplicado'
     },
     {
@@ -53,7 +53,7 @@ const ImportacaoExtratos = () => {
       date: '11/10/2023',
       description: 'PIX Recebido - João M.',
       category: 'Outras Receitas',
-      value: '+R$ 150,00',
+      value: 150.00,
       status: 'Novo'
     },
     {
@@ -61,10 +61,15 @@ const ImportacaoExtratos = () => {
       date: '10/10/2023',
       description: 'Supermercado Extra',
       category: 'Alimentação',
-      value: '-R$ 450,25',
+      value: -450.25,
       status: 'Novo'
     }
   ];
+
+  const formatCurrency = (value: number) => {
+    if (hideValues) return '••••••';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
 
   return (
     <MainLayout title="Importação de Extratos">
@@ -236,9 +241,9 @@ const ImportacaoExtratos = () => {
                           </span>
                         </TableCell>
                         <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right font-mono ${
-                          transaction.value.startsWith('+') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                          transaction.value > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                         }`}>
-                          {transaction.value}
+                          {formatCurrency(transaction.value)}
                         </TableCell>
                         <TableCell className="px-6 py-4 whitespace-nowrap text-center">
                           {transaction.status === 'Novo' ? (

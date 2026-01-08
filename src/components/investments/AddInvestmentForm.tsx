@@ -13,9 +13,10 @@ import { showError, showSuccess } from '@/utils/toast';
 
 interface AddInvestmentFormProps {
   onInvestmentAdded: () => void;
+  hideValues?: boolean; // Added hideValues prop
 }
 
-const AddInvestmentForm = ({ onInvestmentAdded }: AddInvestmentFormProps) => {
+const AddInvestmentForm = ({ onInvestmentAdded, hideValues }: AddInvestmentFormProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);

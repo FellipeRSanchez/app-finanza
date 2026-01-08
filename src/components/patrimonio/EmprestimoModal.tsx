@@ -22,13 +22,15 @@ interface EmprestimoModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   emprestimo?: any;
+  hideValues?: boolean; // Added hideValues prop
 }
 
 const EmprestimoModal = ({ 
   open, 
   onOpenChange, 
   onSuccess, 
-  emprestimo 
+  emprestimo,
+  hideValues
 }: EmprestimoModalProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -188,7 +190,7 @@ const EmprestimoModal = ({
                 onChange={e => setFormData({...formData, emp_data_inicio: e.target.value})}
                 required
                 className="rounded-xl border-border-light bg-background-light/50 font-bold"
-              />
+            />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-[#756189]">Data de Fim (Opcional)</Label>
