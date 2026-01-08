@@ -142,18 +142,12 @@ const ContaModal = ({
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-[#756189]">Tipo</Label>
             <Select 
+              key={formData.con_tipo} // Adicionado key para forçar re-renderização
               value={formData.con_tipo} 
               onValueChange={val => setFormData({...formData, con_tipo: val})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue placeholder="Selecione o tipo">
-                  {formData.con_tipo ? (
-                    allAccountTypes.find(type => type.value === formData.con_tipo)?.label || 
-                    <span className="text-gray-400">Selecione o tipo</span> // Fallback se ainda não encontrar
-                  ) : (
-                    <span className="text-gray-400">Selecione o tipo</span>
-                  )}
-                </SelectValue>
+                <SelectValue placeholder="Selecione o tipo" /> {/* Simplificado */}
               </SelectTrigger>
               <SelectContent className="bg-white border shadow-lg rounded-xl">
                 {allAccountTypes.map(type => (
