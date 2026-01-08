@@ -40,60 +40,68 @@ const ContaModal = ({
   const [formData, setFormData] = useState({
     con_nome: '',
     con_tipo: 'banco',
-    con_limite: '0', // Usado como saldo inicial
+    con_limite: '0',
     con_banco: ''
   });
 
+  // Atualiza o formulário sempre que a prop 'conta' mudar ou a modal abrir
   useEffect(() => {
-    if (conta) {
-      setFormData({
-        con_nome: conta.con_nome || '',
-        con_tipo: conta.con_tipo || 'banco',
-        con_limite: (conta.con_limite || 0).toString(),
-        con_banco: conta.con_banco || ''
-      });
-    } else {
-      setFormData({
-        con_nome: '',
-        con_tipo: 'banco',
-        con_limite: '0',
-        con_banco: ''
-      });
+    if (open) {
+      if (conta) {
+        setFormData({
+          con_nome: conta.con_nome || '',
+          con_tipo: conta.con_tipo || 'banco',
+          con_limite: (conta.con_limite || 0).toString(),
+          con_banco: conta.con_banco || ''
+        });
+      } else {
+        // Reset para nova conta
+        setFormData({
+          con_nome: '',
+          con_tipo: 'banco',
+          con_limite: '0',
+          con_banco: ''
+        });
+      }
     }
   }, [conta, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!formData.con_nome.trim()) {
+      showError('O nome da conta é obrigatório.');
+      return;
+    }
 
+    setLoading(true);
     try {
       const payload = {
         con_nome: formData.con_nome,
         con_tipo: formData.con_tipo,
-        con_limite: parseFloat(formData.con_limite),
+        con_limite: parseFloat(formData.con_limite) || 0,
         con_banco: formData.con_banco,
         con_grupo: grupoId
       };
 
-      if (conta) {
+      if (conta?.con_id) {
         const { error } = await supabase
           .from('contas')
           .update(payload)
           .eq('con_id', conta.con_id);
         if (error) throw error;
-        showSuccess('Conta atualizada!');
+        showSuccess('Conta atualizada com sucesso!');
       } else {
         const { error } = await supabase
           .from('contas')
           .insert([payload]);
         if (error) throw error;
-        showSuccess('Conta criada!');
+        showSuccess('Conta criada com sucesso!');
       }
 
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error(error);
+      console.error("[ContaModal] Erro ao salvar:", error);
       showError('Erro ao salvar conta.');
     } finally {
       setLoading(false);
