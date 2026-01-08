@@ -123,16 +123,8 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
   const rentabilidadePercent = totalInvestido > 0 ? (rentabilidadeValor / totalInvestido) * 100 : 0;
 
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <>
+    <MainLayout title="Investimentos">
       <div className="container mx-auto max-w-7xl p-4 lg:p-8">
         {/* Page Heading */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -165,7 +157,7 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
             </div>
           </Card>
           
-          <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md dark:bg-[#1e1629] border border-transparent dark:border-[#2d2438]">
+          <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md border border-transparent dark:border-[#2d2438]">
             <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-emerald-500/5 transition-transform group-hover:scale-110 dark:bg-emerald-500/10"></div>
             <div className="relative z-10 flex flex-col gap-1">
               <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
@@ -176,7 +168,7 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
             </div>
           </Card>
 
-          <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md dark:bg-[#1e1629] border border-transparent dark:border-[#2d2438]">
+          <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md border border-transparent dark:border-[#2d2438]">
             <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-emerald-500/5 transition-transform group-hover:scale-110 dark:bg-emerald-500/10"></div>
             <div className="relative z-10 flex flex-col gap-1">
               <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
@@ -325,7 +317,7 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </MainLayout>
   );
 };
 

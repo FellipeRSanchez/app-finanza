@@ -249,14 +249,16 @@ const Cartoes = ({ hideValues }: { hideValues: boolean }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
+      <MainLayout title="Meus Cartões">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      </MainLayout>
     );
   }
 
   return (
-    <>
+    <MainLayout title="Meus Cartões">
       <div className="mx-auto max-w-[1200px] flex flex-col gap-8 pb-20">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -335,7 +337,7 @@ const Cartoes = ({ hideValues }: { hideValues: boolean }) => {
             ) : (
               creditCardAccounts.map((card) => {
                 const isNegativeBalance = card.saldoAtual < 0;
-                const utilizedPercentage = card.con_limite > 0 ? (Math.abs(card.faturaAtual) / card.con_limite) * 100 : 0;
+                const utilizedPercentage = card.con_limite > 0 ? (Math.abs(card.saldoAtual) / card.con_limite) * 100 : 0;
                 const availableLimit = card.con_limite + card.saldoAtual; // saldoAtual is negative for debt
 
                 let statusClass = '';
@@ -487,7 +489,7 @@ const Cartoes = ({ hideValues }: { hideValues: boolean }) => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </MainLayout>
   );
 };
 

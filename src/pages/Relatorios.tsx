@@ -101,195 +101,189 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
     }).format(value);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-text-main-light dark:text-text-main-dark">Relatórios Financeiros</h1>
-          <p className="text-text-secondary-light dark:text-text-secondary-dark mt-2">
-            Analise seus gastos e receitas com gráficos detalhados
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <div className="flex items-center gap-2 bg-background-light dark:bg-[#2d2438] rounded-lg p-1">
-            <Button
-              variant={timeRange === 'monthly' ? 'default' : 'ghost'}
-              size="sm"
-              className={timeRange === 'monthly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
-              onClick={() => setTimeRange('monthly')}
-            >
-              Mensal
-            </Button>
-            <Button
-              variant={timeRange === 'yearly' ? 'default' : 'ghost'}
-              size="sm"
-              className={timeRange === 'yearly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
-              onClick={() => setTimeRange('yearly')}
-            >
-              Anual
+    <MainLayout title="Relatórios">
+      <div className="space-y-6 p-4 lg:p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-text-main-light dark:text-text-main-dark">Relatórios Financeiros</h1>
+            <p className="text-text-secondary-light dark:text-text-secondary-dark mt-2">
+              Analise seus gastos e receitas com gráficos detalhados
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2 bg-background-light dark:bg-[#2d2438] rounded-lg p-1">
+              <Button
+                variant={timeRange === 'monthly' ? 'default' : 'ghost'}
+                size="sm"
+                className={timeRange === 'monthly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
+                onClick={() => setTimeRange('monthly')}
+              >
+                Mensal
+              </Button>
+              <Button
+                variant={timeRange === 'yearly' ? 'default' : 'ghost'}
+                size="sm"
+                className={timeRange === 'yearly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
+                onClick={() => setTimeRange('yearly')}
+              >
+                Anual
+              </Button>
+            </div>
+            <Button variant="outline" size="icon" className="border-border-light dark:border-[#3a3045]">
+              <Calendar className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="icon" className="border-border-light dark:border-[#3a3045]">
-            <Calendar className="h-4 w-4" />
-          </Button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <CardTitle className="text-text-main-light dark:text-text-main-dark">
-                {reportType === 'expenses' ? 'Distribuição de Gastos' : 'Fontes de Receita'}
-              </CardTitle>
-              <div className="flex gap-2">
-                <Button
-                  variant={reportType === 'expenses' ? 'default' : 'outline'}
-                  size="sm"
-                  className={reportType === 'expenses' ? 'bg-red-500 hover:bg-red-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
-                  onClick={() => setReportType('expenses')}
-                >
-                  <TrendingDown className="h-4 w-4 mr-2" />
-                  Despesas
-                </Button>
-                <Button
-                  variant={reportType === 'income' ? 'default' : 'outline'}
-                  size="sm"
-                  className={reportType === 'income' ? 'bg-green-500 hover:bg-green-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
-                  onClick={() => setReportType('income')}
-                >
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  Receitas
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 flex items-center justify-center">
-                {loading ? (
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                ) : (
-                  <div className="text-center">
-                    <PieChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
-                    <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
-                      Visualização de {stats.length} categorias
-                    </p>
-                    <div className="mt-4 flex flex-wrap justify-center gap-2">
-                      {stats.slice(0, 5).map((s, i) => (
-                         <div key={i} className="flex items-center gap-1 text-xs px-2 py-1 bg-background-light dark:bg-background-dark rounded">
-                           <span className="w-2 h-2 rounded-full bg-primary-new"></span>
-                           {s.category}
-                         </div>
-                      ))}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <CardTitle className="text-text-main-light dark:text-text-main-dark">
+                  {reportType === 'expenses' ? 'Distribuição de Gastos' : 'Fontes de Receita'}
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant={reportType === 'expenses' ? 'default' : 'outline'}
+                    size="sm"
+                    className={reportType === 'expenses' ? 'bg-red-500 hover:bg-red-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
+                    onClick={() => setReportType('expenses')}
+                  >
+                    <TrendingDown className="h-4 w-4 mr-2" />
+                    Despesas
+                  </Button>
+                  <Button
+                    variant={reportType === 'income' ? 'default' : 'outline'}
+                    size="sm"
+                    className={reportType === 'income' ? 'bg-green-500 hover:bg-green-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
+                    onClick={() => setReportType('income')}
+                  >
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Receitas
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80 flex items-center justify-center">
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  ) : (
+                    <div className="text-center">
+                      <PieChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
+                      <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
+                        Visualização de {stats.length} categorias
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {stats.slice(0, 5).map((s, i) => (
+                           <div key={i} className="flex items-center gap-1 text-xs px-2 py-1 bg-background-light dark:bg-background-dark rounded">
+                             <span className="w-2 h-2 rounded-full bg-primary-new"></span>
+                             {s.category}
+                           </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
-            <CardHeader>
-              <CardTitle className="text-text-main-light dark:text-text-main-dark">
-                Evolução Financeira
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
-                  <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
-                    Comparação histórica em breve
+            <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
+              <CardHeader>
+                <CardTitle className="text-text-main-light dark:text-text-main-dark">
+                  Evolução Financeira
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80 flex items-center justify-center">
+                  <div className="text-center">
+                    <BarChart className="h-16 w-16 mx-auto text-text-secondary-light dark:text-text-secondary-dark opacity-50" />
+                    <p className="mt-4 text-text-secondary-light dark:text-text-secondary-dark">
+                      Comparação histórica em breve
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
+              <CardHeader>
+                <CardTitle className="text-text-main-light dark:text-text-main-dark">
+                  Resumo do Período
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary-light dark:text-text-secondary-dark">Receitas Totais</span>
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                  </div>
+                  <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
+                    {formatCurrency(totals.income)}
                   </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
-        <div className="space-y-6">
-          <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
-            <CardHeader>
-              <CardTitle className="text-text-main-light dark:text-text-main-dark">
-                Resumo do Período
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-text-secondary-light dark:text-text-secondary-dark">Receitas Totais</span>
-                  <TrendingUp className="h-5 w-5 text-green-500" />
-                </div>
-                <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                  {formatCurrency(totals.income)}
-                </p>
-              </div>
-
-              <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-text-secondary-light dark:text-text-secondary-dark">Despesas Totais</span>
-                  <TrendingDown className="h-5 w-5 text-red-500" />
-                </div>
-                <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                  {formatCurrency(totals.expenses)}
-                </p>
-              </div>
-
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-text-secondary-light dark:text-text-secondary-dark">Resultado</span>
-                  <TrendingUp className="h-5 w-5 text-blue-500" />
-                </div>
-                <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
-                  {formatCurrency(totals.income - totals.expenses)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
-            <CardHeader>
-              <CardTitle className="text-text-main-light dark:text-text-main-dark">
-                Maiores {reportType === 'expenses' ? 'Gastos' : 'Fontes'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {stats.length === 0 ? (
-                <p className="text-sm text-text-secondary-light text-center py-4">Nenhum dado encontrado</p>
-              ) : (
-                stats.map((item, index) => (
-                  <div key={index}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
-                        {item.category}
-                      </span>
-                      <span className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
-                        {formatCurrency(item.amount)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${
-                          item.type === 'despesa' ? 'bg-red-500' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${item.percentage}%` }}
-                      ></div>
-                    </div>
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary-light dark:text-text-secondary-dark">Despesas Totais</span>
+                    <TrendingDown className="h-5 w-5 text-red-500" />
                   </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                  <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
+                    {formatCurrency(totals.expenses)}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary-light dark:text-text-secondary-dark">Resultado</span>
+                    <TrendingUp className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <p className="text-2xl font-bold text-text-main-light dark:text-text-main-dark mt-2">
+                    {formatCurrency(totals.income - totals.expenses)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
+              <CardHeader>
+                <CardTitle className="text-text-main-light dark:text-text-main-dark">
+                  Maiores {reportType === 'expenses' ? 'Gastos' : 'Fontes'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {stats.length === 0 ? (
+                  <p className="text-sm text-text-secondary-light text-center py-4">Nenhum dado encontrado</p>
+                ) : (
+                  stats.map((item, index) => (
+                    <div key={index}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-text-secondary-light dark:text-text-secondary-dark">
+                          {item.category}
+                        </span>
+                        <span className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
+                          {formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full ${
+                            item.type === 'despesa' ? 'bg-red-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${item.percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 };
 
