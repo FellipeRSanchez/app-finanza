@@ -1,23 +1,7 @@
 "use client";
-
 import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
-import { 
-  TrendingUp, 
-  Landmark, 
-  Search, 
-  Database, 
-  ArrowUp, 
-  ChevronRight, 
-  MoreVertical, 
-  ChevronLeft,
-  Plus,
-  Wallet,
-  Trash2,
-  Settings,
-  AlertCircle,
-  ArrowDownRight // Added ArrowDownRight icon
-} from 'lucide-react';
+import { TrendingUp, Landmark, Search, Database, ArrowUp, ChevronRight, MoreVertical, ChevronLeft, Plus, Wallet, Trash2, Settings, AlertCircle, ArrowDownRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -26,24 +10,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { showError, showSuccess } from '@/utils/toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
+const Investimentos = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [investimentos, setInvestimentos] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('Todos');
-
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
@@ -60,14 +34,12 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
         .from('investimentos')
         .select('*')
         .eq('user_id', user?.id);
-
       if (searchTerm) {
         query = query.ilike('inv_name', `%${searchTerm}%`);
       }
       if (filterType !== 'Todos') {
         query = query.eq('inv_type', filterType);
       }
-
       const { data, error } = await query;
       if (error) throw error;
       setInvestimentos(data || []);
@@ -97,10 +69,9 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
         .from('investimentos')
         .delete()
         .eq('inv_id', deleteTarget.id);
-
       if (error) throw error;
       showSuccess(`${deleteTarget.name} excluído com sucesso!`);
-      fetchInvestments(); // Refresh data
+      fetchInvestments();
     } catch (error) {
       console.error("Erro ao excluir investimento:", error);
       showError(`Erro ao excluir ${deleteTarget.name}.`);
@@ -110,23 +81,19 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
     }
   };
 
-  // Placeholder for editing investment (modal not yet implemented)
   const handleEditInvestment = (investment: any) => {
     showError("Funcionalidade de edição de investimento ainda não implementada.");
     console.log("Edit investment:", investment);
   };
 
-  // Calculate summary stats
   const totalInvestido = investimentos.reduce((sum, inv) => sum + Number(inv.inv_avg_price || 0), 0);
   const saldoAtual = investimentos.reduce((sum, inv) => sum + Number(inv.inv_current_value || 0), 0);
   const rentabilidadeValor = investimentos.reduce((sum, inv) => sum + Number(inv.inv_performance_value || 0), 0);
   const rentabilidadePercent = totalInvestido > 0 ? (rentabilidadeValor / totalInvestido) * 100 : 0;
 
-
   return (
-    <MainLayout title="Investimentos">
+    <MainLayout title="Investimentos" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="container mx-auto max-w-7xl p-4 lg:p-8">
-        {/* Page Heading */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -134,17 +101,11 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               <ChevronRight className="w-4 h-4" />
               <span className="text-primary">Investimentos</span>
             </div>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white lg:text-4xl">
-              Meus Investimentos
-            </h1>
-            <p className="mt-1 text-slate-500 dark:text-slate-400">
-              Acompanhe a performance detalhada da sua carteira.
-            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-white lg:text-4xl"> Meus Investimentos </h1>
+            <p className="mt-1 text-slate-500 dark:text-slate-400"> Acompanhe a performance detalhada da sua carteira. </p>
           </div>
-          <AddInvestmentForm onInvestmentAdded={fetchInvestments} />
+          <AddInvestmentForm onInvestmentAdded={fetchInvestments} hideValues={hideValues} />
         </div>
-
-        {/* Summary Stats */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md border border-transparent dark:border-[#2d2438]">
             <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-primary/5 transition-transform group-hover:scale-110 dark:bg-primary/10"></div>
@@ -156,7 +117,6 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               <span className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white lg:text-3xl">{formatCurrency(totalInvestido)}</span>
             </div>
           </Card>
-          
           <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md border border-transparent dark:border-[#2d2438]">
             <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-emerald-500/5 transition-transform group-hover:scale-110 dark:bg-emerald-500/10"></div>
             <div className="relative z-10 flex flex-col gap-1">
@@ -167,7 +127,6 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               <span className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white lg:text-3xl">{formatCurrency(saldoAtual)}</span>
             </div>
           </Card>
-
           <Card className="group relative overflow-hidden rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm transition-all hover:shadow-md border border-transparent dark:border-[#2d2438]">
             <div className="absolute right-0 top-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-emerald-500/5 transition-transform group-hover:scale-110 dark:bg-emerald-500/10"></div>
             <div className="relative z-10 flex flex-col gap-1">
@@ -180,14 +139,13 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
                   {formatCurrency(rentabilidadeValor)}
                 </span>
                 <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold", rentabilidadePercent >= 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400")}>
-                  {rentabilidadePercent >= 0 ? <ArrowUp size={12} className="mr-1" /> : <ArrowDownRight size={12} className="mr-1" />} {rentabilidadePercent.toFixed(2)}%
+                  {rentabilidadePercent >= 0 ? <ArrowUp size={12} className="mr-1" /> : <ArrowDownRight size={12} className="mr-1" />}
+                  {rentabilidadePercent.toFixed(2)}%
                 </span>
               </div>
             </div>
           </Card>
         </div>
-
-        {/* Content Area */}
         <Card className="flex flex-col gap-6 rounded-2xl bg-white dark:bg-[#1e1629] p-6 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full max-w-md">
@@ -195,13 +153,13 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               <Input 
                 className="block w-full rounded-xl border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary dark:border-[#2d2438] dark:bg-[#251b30] dark:text-white" 
                 placeholder="Buscar ativo..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button 
-                className={cn("rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-all hover:bg-primary/90", filterType === 'Todos' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:border-[#2d2438] dark:bg-[#251b30] dark:text-slate-300')}
+                className={cn("rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-all hover:bg-primary/90", filterType === 'Todos' ? 'bg-primary text-white' : 'bg-white text-slate-600 border border-slate-200 dark:border-[#2d2438] dark:bg-[#251b30] dark:text-slate-300')} 
                 onClick={() => setFilterType('Todos')}
               >
                 Todos
@@ -210,7 +168,7 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
                 <Button 
                   key={chip} 
                   variant="ghost" 
-                  className={cn("rounded-lg border px-4 py-2 text-sm font-medium", filterType === chip ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 dark:border-[#2d2438] dark:bg-[#251b30] dark:text-slate-300')}
+                  className={cn("rounded-lg border px-4 py-2 text-sm font-medium", filterType === chip ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 dark:border-[#2d2438] dark:bg-[#251b30] dark:text-slate-300')} 
                   onClick={() => setFilterType(chip)}
                 >
                   {chip}
@@ -218,7 +176,6 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               ))}
             </div>
           </div>
-
           <div className="relative overflow-x-auto rounded-xl border border-slate-100 dark:border-[#2d2438]">
             <table className="w-full text-left text-sm text-slate-500 dark:text-slate-400">
               <thead className="bg-slate-50 text-xs uppercase text-slate-700 dark:bg-[#251b30] dark:text-slate-300">
@@ -263,7 +220,7 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn("inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset", 
-                          item.inv_type === 'Renda Fixa' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30' : 
+                          item.inv_type === 'Renda Fixa' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400 dark:ring-emerald-500/30' :
                           item.inv_type === 'Ações BDR' ? 'bg-purple-50 text-purple-700 ring-purple-700/10 dark:bg-purple-400/10 dark:text-purple-400 dark:ring-purple-400/30' :
                           item.inv_type === 'Ações Brasil' ? 'bg-blue-50 text-blue-700 ring-blue-700/10 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/30' :
                           item.inv_type === 'Cripto' ? 'bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-400/10 dark:text-orange-400 dark:ring-orange-400/30' :
@@ -289,7 +246,6 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
               </tbody>
             </table>
           </div>
-
           <div className="flex items-center justify-between border-t border-slate-100 pt-4 dark:border-[#2d2438]">
             <span className="text-sm text-slate-500 dark:text-slate-400">
               Mostrando <span className="font-semibold text-slate-900 dark:text-white">1-{investimentos.length}</span> de <span className="font-semibold text-slate-900 dark:text-white">{investimentos.length}</span> ativos
@@ -301,8 +257,6 @@ const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
           </div>
         </Card>
       </div>
-
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="bg-white rounded-3xl border">
           <AlertDialogHeader>

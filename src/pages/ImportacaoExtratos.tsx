@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Upload, ArrowDown, Check, Info, CloudUpload } from 'lucide-react';
 import { useState } from 'react';
 
-const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
+const ImportacaoExtratos = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -21,49 +21,18 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const handleImport = () => {
     if (!selectedFile) return;
-
     setIsImporting(true);
-    // Simulate import process
     setTimeout(() => {
       setIsImporting(false);
       alert('Importação concluída com sucesso!');
     }, 2000);
   };
 
-  // Sample data for preview
   const sampleTransactions = [
-    {
-      id: 1,
-      date: '12/10/2023',
-      description: 'Uber *Trip Help.Uber',
-      category: 'Transporte',
-      value: -24.90,
-      status: 'Novo'
-    },
-    {
-      id: 2,
-      date: '12/10/2023',
-      description: 'Spotify Family',
-      category: 'Assinaturas',
-      value: -34.90,
-      status: 'Duplicado'
-    },
-    {
-      id: 3,
-      date: '11/10/2023',
-      description: 'PIX Recebido - João M.',
-      category: 'Outras Receitas',
-      value: 150.00,
-      status: 'Novo'
-    },
-    {
-      id: 4,
-      date: '10/10/2023',
-      description: 'Supermercado Extra',
-      category: 'Alimentação',
-      value: -450.25,
-      status: 'Novo'
-    }
+    { id: 1, date: '12/10/2023', description: 'Uber *Trip Help.Uber', category: 'Transporte', value: -24.90, status: 'Novo' },
+    { id: 2, date: '12/10/2023', description: 'Spotify Family', category: 'Assinaturas', value: -34.90, status: 'Duplicado' },
+    { id: 3, date: '11/10/2023', description: 'PIX Recebido - João M.', category: 'Outras Receitas', value: 150.00, status: 'Novo' },
+    { id: 4, date: '10/10/2023', description: 'Supermercado Extra', category: 'Alimentação', value: -450.25, status: 'Novo' }
   ];
 
   const formatCurrency = (value: number) => {
@@ -72,9 +41,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   };
 
   return (
-    <MainLayout title="Importação de Extratos">
+    <MainLayout title="Importação de Extratos" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="max-w-5xl mx-auto space-y-8 pb-20">
-        {/* Page Heading */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm mb-1">
             <a className="hover:text-primary-new" href="#">Financeiro</a>
@@ -88,23 +56,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             Carregue seus arquivos OFX, CSV ou XLS para sincronizar suas finanças automaticamente.
           </p>
         </div>
-
-        {/* Main Import Card */}
         <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl shadow-soft border border-border-light dark:border-[#2d2438] overflow-hidden">
-          {/* Progress / Steps Indicator */}
           <div className="flex border-b border-border-light dark:border-[#2d2438] bg-background-light/50 dark:bg-background-dark/30">
             <div className="flex-1 p-4 flex items-center justify-center gap-2 border-b-2 border-primary-new text-primary-new font-bold text-sm">
-              <span className="size-6 rounded-full bg-primary-new text-white flex items-center justify-center text-xs">1</span>
-              Upload e Configuração
+              <span className="size-6 rounded-full bg-primary-new text-white flex items-center justify-center text-xs">1</span> Upload e Configuração
             </div>
             <div className="flex-1 p-4 flex items-center justify-center gap-2 text-text-secondary-light dark:text-text-secondary-dark font-medium text-sm">
-              <span className="size-6 rounded-full bg-border-light dark:bg-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark flex items-center justify-center text-xs">2</span>
-              Confirmação
+              <span className="size-6 rounded-full bg-border-light dark:bg-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark flex items-center justify-center text-xs">2</span> Confirmação
             </div>
           </div>
-
           <CardContent className="p-6 md:p-8 space-y-8">
-            {/* Step 1: Configuration */}
             <div className="grid md:grid-cols-2 gap-8">
               <div className="space-y-4">
                 <Label className="block">
@@ -126,7 +87,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     Os lançamentos serão vinculados a esta conta.
                   </p>
                 </Label>
-
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" size={20} />
                   <div className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -137,8 +97,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   </div>
                 </div>
               </div>
-
-              {/* Upload Area */}
               <div className="flex flex-col">
                 <span className="text-text-main-light dark:text-text-main-dark text-sm font-bold mb-2 block">
                   Arquivo do Extrato
@@ -155,12 +113,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                       OFX, CSV ou XLS (max. 10MB)
                     </p>
                   </div>
-                  <Input
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileChange}
-                    accept=".ofx,.csv,.xls,.xlsx"
-                  />
+                  <Input type="file" className="hidden" onChange={handleFileChange} accept=".ofx,.csv,.xls,.xlsx" />
                 </Label>
                 {selectedFile && (
                   <p className="mt-2 text-sm text-text-main-light dark:text-text-main-dark">
@@ -169,21 +122,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 )}
               </div>
             </div>
-
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border-light dark:border-[#3a3045]"></div>
               </div>
               <div className="relative flex justify-center">
                 <span className="bg-card-light dark:bg-[#1e1629] px-3 text-sm text-text-secondary-light dark:text-text-secondary-dark flex items-center gap-1">
-                  <ArrowDown size={16} />
-                  Pré-visualização
+                  <ArrowDown size={16} /> Pré-visualização
                 </span>
               </div>
             </div>
-
-            {/* Preview Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -198,8 +146,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   </Button>
                 </div>
               </div>
-
-              {/* Table Wrapper */}
               <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
                 <Table>
                   <TableHeader>
@@ -223,12 +169,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   </TableHeader>
                   <TableBody className="divide-y divide-border-light dark:divide-[#3a3045]">
                     {sampleTransactions.map((transaction) => (
-                      <TableRow
-                        key={transaction.id}
-                        className={`hover:bg-background-light dark:hover:bg-[#2d2438] transition-colors ${
-                          transaction.status === 'Duplicado' ? 'bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20' : ''
-                        }`}
-                      >
+                      <TableRow key={transaction.id} className={`hover:bg-background-light dark:hover:bg-[#2d2438] transition-colors ${
+                        transaction.status === 'Duplicado' ? 'bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20' : ''
+                      }`}>
                         <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-text-main-light dark:text-text-main-dark font-medium">
                           {transaction.date}
                         </TableCell>
@@ -265,14 +208,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               </div>
             </div>
           </CardContent>
-
-          {/* Footer / Actions */}
           <div className="px-6 py-4 md:px-8 bg-background-light dark:bg-[#1e1629] border-t border-border-light dark:border-[#3a3045] flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
             <Button variant="outline" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-transparent text-sm font-bold text-text-secondary-light hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               Cancelar
             </Button>
-            <Button
-              onClick={handleImport}
+            <Button 
+              onClick={handleImport} 
               disabled={!selectedFile || isImporting}
               className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary-new hover:bg-primary-new/90 text-white shadow-lg shadow-primary-new/30 text-sm font-bold transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
             >
@@ -290,8 +231,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             </Button>
           </div>
         </Card>
-
-        {/* Footer Links */}
         <div className="flex justify-center gap-6 text-sm text-text-secondary-light dark:text-text-secondary-dark pt-8">
           <a className="hover:underline" href="#">Ajuda</a>
           <a className="hover:underline" href="#">Privacidade</a>

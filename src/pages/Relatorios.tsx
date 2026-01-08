@@ -12,10 +12,10 @@ interface CategoryStats {
   category: string;
   amount: number;
   percentage: number;
-  type: 'receita' | 'despesa'; // Add type to stats
+  type: 'receita' | 'despesa';
 }
 
-const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
+const Relatorios = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('monthly');
   const [reportType, setReportType] = useState<'income' | 'expenses'>('expenses');
@@ -37,45 +37,33 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
         .select('usu_grupo')
         .eq('usu_id', user?.id)
         .single();
-
       if (!userData?.usu_grupo) return;
-
       const now = new Date();
       const startDate = format(startOfMonth(now), 'yyyy-MM-dd');
       const endDate = format(endOfMonth(now), 'yyyy-MM-dd');
-
       const { data: lancamentos, error: lError } = await supabase
         .from('lancamentos')
-        .select(`
-          lan_valor,
-          categorias (cat_nome)
-        `)
+        .select(` lan_valor, categorias (cat_nome) `)
         .eq('lan_grupo', userData.usu_grupo)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate);
-
       if (lError) throw lError;
-
       const grouped: Record<string, { amount: number, type: 'receita' | 'despesa' }> = {};
       let totalIncome = 0;
       let totalExpenses = 0;
-
       lancamentos?.forEach((lan: any) => {
         const valor = Number(lan.lan_valor);
-        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa'; // Determine type by lan_valor sign
+        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa';
         const name = lan.categorias?.cat_nome || 'Sem Categoria';
-
         if (type === 'receita') totalIncome += valor;
-        if (type === 'despesa') totalExpenses += Math.abs(valor); // Sum absolute value for expenses
-
+        if (type === 'despesa') totalExpenses += Math.abs(valor);
         if (type === (reportType === 'income' ? 'receita' : 'despesa')) {
           if (!grouped[name]) {
             grouped[name] = { amount: 0, type: type };
           }
-          grouped[name].amount += Math.abs(valor); // Sum absolute value for category breakdown
+          grouped[name].amount += Math.abs(valor);
         }
       });
-
       const currentTotal = reportType === 'income' ? totalIncome : totalExpenses;
       const statsArray = Object.entries(grouped).map(([category, data]) => ({
         category,
@@ -83,7 +71,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
         percentage: currentTotal > 0 ? (data.amount / currentTotal) * 100 : 0,
         type: data.type
       })).sort((a, b) => b.amount - a.amount);
-
       setStats(statsArray);
       setTotals({ income: totalIncome, expenses: totalExpenses });
     } catch (error) {
@@ -102,7 +89,7 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
   };
 
   return (
-    <MainLayout title="Relatórios">
+    <MainLayout title="Relatórios" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="space-y-6 p-4 lg:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -113,18 +100,18 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
           </div>
           <div className="flex gap-3">
             <div className="flex items-center gap-2 bg-background-light dark:bg-[#2d2438] rounded-lg p-1">
-              <Button
-                variant={timeRange === 'monthly' ? 'default' : 'ghost'}
-                size="sm"
-                className={timeRange === 'monthly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
+              <Button 
+                variant={timeRange === 'monthly' ? 'default' : 'ghost'} 
+                size="sm" 
+                className={timeRange === 'monthly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'} 
                 onClick={() => setTimeRange('monthly')}
               >
                 Mensal
               </Button>
-              <Button
-                variant={timeRange === 'yearly' ? 'default' : 'ghost'}
-                size="sm"
-                className={timeRange === 'yearly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'}
+              <Button 
+                variant={timeRange === 'yearly' ? 'default' : 'ghost'} 
+                size="sm" 
+                className={timeRange === 'yearly' ? 'bg-primary-new text-white' : 'text-text-secondary-light dark:text-text-secondary-dark'} 
                 onClick={() => setTimeRange('yearly')}
               >
                 Anual
@@ -135,7 +122,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
             </Button>
           </div>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
@@ -144,23 +130,21 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                   {reportType === 'expenses' ? 'Distribuição de Gastos' : 'Fontes de Receita'}
                 </CardTitle>
                 <div className="flex gap-2">
-                  <Button
-                    variant={reportType === 'expenses' ? 'default' : 'outline'}
-                    size="sm"
-                    className={reportType === 'expenses' ? 'bg-red-500 hover:bg-red-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
+                  <Button 
+                    variant={reportType === 'expenses' ? 'default' : 'outline'} 
+                    size="sm" 
+                    className={reportType === 'expenses' ? 'bg-red-500 hover:bg-red-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'} 
                     onClick={() => setReportType('expenses')}
                   >
-                    <TrendingDown className="h-4 w-4 mr-2" />
-                    Despesas
+                    <TrendingDown className="h-4 w-4 mr-2" /> Despesas
                   </Button>
-                  <Button
-                    variant={reportType === 'income' ? 'default' : 'outline'}
-                    size="sm"
-                    className={reportType === 'income' ? 'bg-green-500 hover:bg-green-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'}
+                  <Button 
+                    variant={reportType === 'income' ? 'default' : 'outline'} 
+                    size="sm" 
+                    className={reportType === 'income' ? 'bg-green-500 hover:bg-green-600 text-white' : 'border-border-light dark:border-[#3a3045] text-text-secondary-light dark:text-text-secondary-dark'} 
                     onClick={() => setReportType('income')}
                   >
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Receitas
+                    <TrendingUp className="h-4 w-4 mr-2" /> Receitas
                   </Button>
                 </div>
               </CardHeader>
@@ -176,10 +160,10 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                       </p>
                       <div className="mt-4 flex flex-wrap justify-center gap-2">
                         {stats.slice(0, 5).map((s, i) => (
-                           <div key={i} className="flex items-center gap-1 text-xs px-2 py-1 bg-background-light dark:bg-background-dark rounded">
-                             <span className="w-2 h-2 rounded-full bg-primary-new"></span>
-                             {s.category}
-                           </div>
+                          <div key={i} className="flex items-center gap-1 text-xs px-2 py-1 bg-background-light dark:bg-background-dark rounded">
+                            <span className="w-2 h-2 rounded-full bg-primary-new"></span>
+                            {s.category}
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -187,7 +171,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
               </CardContent>
             </Card>
-
             <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
               <CardHeader>
                 <CardTitle className="text-text-main-light dark:text-text-main-dark">
@@ -206,7 +189,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
               </CardContent>
             </Card>
           </div>
-
           <div className="space-y-6">
             <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
               <CardHeader>
@@ -224,7 +206,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                     {formatCurrency(totals.income)}
                   </p>
                 </div>
-
                 <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className="text-text-secondary-light dark:text-text-secondary-dark">Despesas Totais</span>
@@ -234,7 +215,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                     {formatCurrency(totals.expenses)}
                   </p>
                 </div>
-
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <div className="flex justify-between items-center">
                     <span className="text-text-secondary-light dark:text-text-secondary-dark">Resultado</span>
@@ -246,7 +226,6 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
               </CardContent>
             </Card>
-
             <Card className="bg-card-light dark:bg-[#1e1629] border-border-light dark:border-[#2d2438]">
               <CardHeader>
                 <CardTitle className="text-text-main-light dark:text-text-main-dark">
@@ -268,10 +247,8 @@ const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
                         </span>
                       </div>
                       <div className="w-full bg-background-light dark:bg-[#2d2438] rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full ${
-                            item.type === 'despesa' ? 'bg-red-500' : 'bg-green-500'
-                          }`}
+                        <div 
+                          className={`h-2 rounded-full ${item.type === 'despesa' ? 'bg-red-500' : 'bg-green-500'}`} 
                           style={{ width: `${item.percentage}%` }}
                         ></div>
                       </div>

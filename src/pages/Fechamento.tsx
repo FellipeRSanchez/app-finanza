@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,21 +23,19 @@ interface Fechamento {
 interface CategoryTotal {
   nome: string;
   valor: number;
-  type: 'receita' | 'despesa'; // Changed 'tipo' to 'type' for consistency
+  type: 'receita' | 'despesa';
 }
 
-const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
+const Fechamento = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
   const { user } = useAuth();
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
   const [observacoes, setObservacoes] = useState('');
   const [categoryTotals, setCategoryTotals] = useState<CategoryTotal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -58,12 +55,8 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
         .select('usu_grupo')
         .eq('usu_id', user?.id)
         .single();
-
       if (!userData?.usu_grupo) return;
-
       const grupoId = userData.usu_grupo;
-
-      // 1. Fetch Fechamento Status
       const { data: fechamentoData } = await supabase
         .from('fechamentos_mensais')
         .select('*')
@@ -71,7 +64,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
         .eq('fem_mes', selectedMonth)
         .eq('fem_ano', selectedYear)
         .single();
-
       if (fechamentoData) {
         setFechamento(fechamentoData);
         setObservacoes(fechamentoData.fem_observacoes || '');
@@ -79,43 +71,31 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
         setFechamento(null);
         setObservacoes('');
       }
-
-      // 2. Fetch Category Breakdown for the month
       const startDate = format(new Date(selectedYear, selectedMonth - 1, 1), 'yyyy-MM-dd');
       const endDate = format(endOfMonth(new Date(selectedYear, selectedMonth - 1, 1)), 'yyyy-MM-dd');
-
       const { data: lancamentos, error: lError } = await supabase
         .from('lancamentos')
-        .select(`
-          lan_valor,
-          categorias (cat_nome)
-        `) // Only need cat_nome, type is from lan_valor
+        .select(` lan_valor, categorias (cat_nome) `)
         .eq('lan_grupo', grupoId)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate);
-
       if (lError) throw lError;
-
       const totals: Record<string, { valor: number, type: 'receita' | 'despesa' }> = {};
       lancamentos?.forEach((lan: any) => {
         const valor = Number(lan.lan_valor);
-        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa'; // Determine type by lan_valor sign
+        const type: 'receita' | 'despesa' = valor > 0 ? 'receita' : 'despesa';
         const nome = lan.categorias?.cat_nome || 'Sem Categoria';
-
         if (!totals[nome]) {
           totals[nome] = { valor: 0, type: type };
         }
-        totals[nome].valor += Math.abs(valor); // Sum absolute value
+        totals[nome].valor += Math.abs(valor);
       });
-
       const formattedTotals = Object.entries(totals).map(([nome, data]) => ({
         nome,
         valor: data.valor,
         type: data.type
       })).sort((a, b) => b.valor - a.valor);
-
       setCategoryTotals(formattedTotals);
-
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -131,9 +111,7 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
         .select('usu_grupo')
         .eq('usu_id', user?.id)
         .single();
-
       if (!userData?.usu_grupo) return;
-
       if (fechamento) {
         const { error } = await supabase
           .from('fechamentos_mensais')
@@ -152,7 +130,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
           })
           .select()
           .single();
-
         if (error) throw error;
         if (data) setFechamento(data);
       }
@@ -173,11 +150,8 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
         .select('usu_grupo')
         .eq('usu_id', user?.id)
         .single();
-
       if (!userData?.usu_grupo) return;
-
       const newFechadoStatus = !fechamento?.fem_fechado;
-
       if (fechamento) {
         const { error } = await supabase
           .from('fechamentos_mensais')
@@ -197,7 +171,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
           })
           .select()
           .single();
-
         if (error) throw error;
         if (data) setFechamento(data);
       }
@@ -213,7 +186,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
   const handleMonthChange = (direction: 'prev' | 'next') => {
     let newMonth = selectedMonth;
     let newYear = selectedYear;
-
     if (direction === 'prev') {
       newMonth--;
       if (newMonth < 1) {
@@ -245,7 +217,7 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
 
   if (loading) {
     return (
-      <MainLayout title="Fechamento Mensal">
+      <MainLayout title="Fechamento Mensal" hideValues={hideValues} setHideValues={setHideValues}>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
@@ -254,18 +226,17 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
   }
 
   return (
-    <MainLayout title="Fechamento Mensal">
+    <MainLayout title="Fechamento Mensal" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="max-w-[1200px] mx-auto flex flex-col gap-8">
-        {/* Header & Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-text-main-light dark:text-text-main-dark text-3xl font-black leading-tight tracking-tight">Resumo de {monthNames[selectedMonth - 1]} {selectedYear}</h1>
+              <h1 className="text-text-main-light dark:text-text-main-dark text-3xl font-black leading-tight tracking-tight">
+                Resumo de {monthNames[selectedMonth - 1]} {selectedYear}
+              </h1>
               <span className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border",
-                fechamento?.fem_fechado
-                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800'
-                  : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800'
+                fechamento?.fem_fechado ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800'
               )}>
                 {fechamento?.fem_fechado ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
                 {fechamento?.fem_fechado ? 'Mês Fechado' : 'Mês Aberto'}
@@ -287,8 +258,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
             </Button>
           </div>
         </div>
-
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 bg-card-light dark:bg-[#1e1429] border-border-light dark:border-white/10 shadow-soft relative overflow-hidden group">
             <div className="flex items-center justify-between z-10 relative">
@@ -320,8 +289,6 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
             </p>
           </Card>
         </div>
-
-        {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           <Card className="lg:col-span-2 flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border-light dark:border-white/10">
@@ -345,10 +312,8 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
                         <p className="text-sm font-bold text-text-main-light dark:text-white">{formatCurrency(item.valor)}</p>
                       </div>
                       <div className="w-full bg-background-light dark:bg-white/10 rounded-full h-1.5 mt-1">
-                        <div 
-                          className={cn("h-1.5 rounded-full", item.type === 'receita' ? "bg-emerald-500" : "bg-orange-500")} 
-                          style={{ width: `${Math.min((item.valor / (item.type === 'receita' ? totalReceitas : totalDespesas)) * 100, 100)}%` }}
-                        ></div>
+                        <div className={cn("h-1.5 rounded-full", item.type === 'receita' ? "bg-emerald-500" : "bg-orange-500")} 
+                          style={{ width: `${Math.min((item.valor / (item.type === 'receita' ? totalReceitas : totalDespesas)) * 100, 100)}%` }}></div>
                       </div>
                     </div>
                   </div>
@@ -356,31 +321,29 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
               )}
             </div>
           </Card>
-
           <div className="flex flex-col gap-6">
             <Card className="flex flex-col bg-card-light dark:bg-[#1e1429] rounded-xl border border-border-light dark:border-white/10 shadow-soft overflow-hidden h-full">
               <CardHeader className="flex items-center justify-between px-6 py-4 border-b border-border-light dark:border-white/10">
                 <CardTitle className="text-text-main-light dark:text-text-main-dark text-lg font-bold">Observações</CardTitle>
               </CardHeader>
               <CardContent className="p-4 flex-1">
-                <Textarea
-                  placeholder="Notas sobre o mês (ex: Recebi 13º salário, Gasto extra com manutenção do carro)..."
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  disabled={fechamento?.fem_fechado || saving}
-                  rows={6}
-                  className="w-full min-h-[160px] p-4 bg-background-light dark:bg-white/5 border-none focus-visible:ring-1 focus-visible:ring-primary-new"
+                <Textarea 
+                  placeholder="Notas sobre o mês (ex: Recebi 13º salário, Gasto extra com manutenção do carro)..." 
+                  value={observacoes} 
+                  onChange={(e) => setObservacoes(e.target.value)} 
+                  disabled={fechamento?.fem_fechado || saving} 
+                  rows={6} 
+                  className="w-full min-h-[160px] p-4 bg-background-light dark:bg-white/5 border-none focus-visible:ring-1 focus-visible:ring-primary-new" 
                 />
                 <Button 
                   onClick={handleSaveObservacoes} 
-                  disabled={fechamento?.fem_fechado || saving}
+                  disabled={fechamento?.fem_fechado || saving} 
                   className="mt-4 w-full bg-primary-new hover:bg-primary-new/90 text-white"
                 >
                   Salvar Observações
                 </Button>
               </CardContent>
             </Card>
-
             <Card className="p-6 bg-card-light dark:bg-[#1e1429] border border-border-light dark:border-white/10 shadow-soft gap-4 flex flex-col">
               <div>
                 <CardTitle className="text-text-main-light dark:text-text-main-dark text-lg font-bold mb-1">
@@ -390,9 +353,9 @@ const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
                   {fechamento?.fem_fechado ? 'Clique para permitir novas edições.' : 'Ao fechar, o mês se torna imutável.'}
                 </p>
               </div>
-              <Button
-                onClick={handleToggleFecharMes}
-                disabled={saving}
+              <Button 
+                onClick={handleToggleFecharMes} 
+                disabled={saving} 
                 className={cn(
                   "w-full flex items-center justify-center gap-3 rounded-xl h-12 text-base font-bold transition-all shadow-lg",
                   fechamento?.fem_fechado ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
