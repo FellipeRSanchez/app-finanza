@@ -46,6 +46,7 @@ const ContaModal = ({
 
   useEffect(() => {
     if (open && conta) {
+      console.log('Conta recebida:', conta); // Log para depuração
       setFormData({
         con_nome: conta.con_nome || '',
         con_tipo: conta.con_tipo || 'banco',
