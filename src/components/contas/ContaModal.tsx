@@ -45,14 +45,25 @@ const ContaModal = ({
   });
 
   useEffect(() => {
-    if (conta) {
-      setFormData({
-        con_nome: conta.con_nome || '',
-        con_tipo: conta.con_tipo || 'banco',
-        con_limite: (conta.con_limite || 0).toString(),
-        con_banco: conta.con_banco || ''
-      });
+    if (open) {
+      if (conta) {
+        setFormData({
+          con_nome: conta.con_nome || '',
+          con_tipo: conta.con_tipo || 'banco',
+          con_limite: (conta.con_limite || 0).toString(),
+          con_banco: conta.con_banco || ''
+        });
+      } else {
+        // Reset for new account
+        setFormData({
+          con_nome: '',
+          con_tipo: 'banco',
+          con_limite: '0',
+          con_banco: ''
+        });
+      }
     } else {
+      // Reset form when modal closes
       setFormData({
         con_nome: '',
         con_tipo: 'banco',
