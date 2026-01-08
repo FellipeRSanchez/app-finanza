@@ -65,7 +65,7 @@ const Patrimonio = () => {
         .from('lancamentos')
         .select('lan_valor, lan_conta')
         .eq('lan_grupo', userData.usu_grupo)
-        .eq('lan_conciliado', true); 
+        .eq('lan_conciliado', true); // Considerar apenas lançamentos conciliados para o saldo real
 
       if (lancamentosError) throw lancamentosError;
 
@@ -75,8 +75,10 @@ const Patrimonio = () => {
         
         let saldoAtual = 0;
         if (acc.con_tipo === 'cartao') {
+          // Para cartões, o saldo atual é a soma dos lançamentos (dívida)
           saldoAtual = somaTransacoes;
         } else {
+          // Para outras contas, é o limite/saldo inicial + soma dos lançamentos
           saldoAtual = Number(acc.con_limite || 0) + somaTransacoes;
         }
         
@@ -115,26 +117,17 @@ const Patrimonio = () => {
 
   const dividaCartoes = contas
     .filter(acc => acc.con_tipo === 'cartao')
-    .reduce((sum, acc) => sum + acc.saldoAtual, 0);
+    .reduce((sum, acc) => sum + acc.saldoAtual, 0); // Saldo de cartão já é negativo para dívida
 
   const handleViewLancamentos = (accountId: string) => {
     navigate(`/lancamentos?account=${accountId}`);
-  };
-
-  const handleEdit = (conta: any) => {
-    setEditingConta(conta);
-    setModalOpen(true);
-  };
-
-  const handleAdd = () => {
-    setEditingConta(null);
-    setModalOpen(true);
   };
 
   return (
     <MainLayout title="Minhas Contas">
       <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
         
+        {/* Header com botão de ocultar valores */}
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-black text-[#141118] dark:text-white tracking-tight">Minhas Contas</h1>
           <Button 
@@ -142,12 +135,15 @@ const Patrimonio = () => {
             size="icon" 
             onClick={() => setHideValues(!hideValues)}
             className="size-11 rounded-xl bg-background-light dark:bg-[#2c2435] text-text-main-light dark:text-white hover:bg-gray-200 dark:hover:bg-[#3a3045] transition-colors"
+            title={hideValues ? "Mostrar valores" : "Ocultar valores"}
           >
             {hideValues ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </Button>
         </div>
 
+        {/* Cards de Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Saldo Total */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
             <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Saldo Total</p>
             <div className="flex items-center justify-between mt-1">
@@ -156,6 +152,7 @@ const Patrimonio = () => {
             </div>
           </Card>
           
+          {/* Disponível em Contas (mesmo valor do Saldo Total, com destaque) */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
             <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Disponível em Contas</p>
             <div className="flex items-center justify-between mt-1">
@@ -164,6 +161,7 @@ const Patrimonio = () => {
             </div>
           </Card>
 
+          {/* Dívida em Cartões */}
           <Card className="bg-white dark:bg-[#1e1629] p-6 rounded-2xl border-border-light dark:border-[#2d2438] shadow-soft flex flex-col gap-1 overflow-hidden group">
             <p className="text-[#756189] text-[10px] font-black uppercase tracking-widest">Dívida em Cartões</p>
             <div className="flex items-center justify-between mt-1">
@@ -173,6 +171,7 @@ const Patrimonio = () => {
           </Card>
         </div>
 
+        {/* Accounts Grid */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-black text-[#141118] dark:text-white">Detalhes das Contas</h3>
@@ -211,7 +210,7 @@ const Patrimonio = () => {
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleViewLancamentos(conta.con_id); }}>
                           <FileText className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleEdit(conta); }}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingConta(conta); setModalOpen(true); }}>
                           <Settings className="w-4 h-4" />
                         </Button>
                       </div>
@@ -232,7 +231,7 @@ const Patrimonio = () => {
             )}
             
             <button 
-              onClick={handleAdd}
+              onClick={() => { setEditingConta(null); setModalOpen(true); }}
               className="flex flex-col items-center justify-center gap-3 p-8 border-2 border-dashed border-border-light dark:border-[#2d2438] rounded-3xl hover:bg-background-light dark:hover:bg-[#1e1629] hover:border-primary/40 transition-all group"
             >
               <div className="size-12 rounded-full bg-background-light dark:bg-[#2c2435] flex items-center justify-center text-[#756189] group-hover:text-primary transition-colors">
@@ -245,7 +244,6 @@ const Patrimonio = () => {
       </div>
 
       <ContaModal 
-        key={editingConta?.con_id || 'new-account'}
         open={modalOpen}
         onOpenChange={setModalOpen}
         onSuccess={fetchContas}

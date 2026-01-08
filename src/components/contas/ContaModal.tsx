@@ -40,31 +40,28 @@ const ContaModal = ({
   const [formData, setFormData] = useState({
     con_nome: '',
     con_tipo: 'banco',
-    con_limite: '0', 
+    con_limite: '0', // Usado como saldo inicial
     con_banco: ''
   });
 
-  // Inicializa o estado com os dados da conta quando ela muda ou o modal abre
   useEffect(() => {
-    if (open) {
-      if (conta) {
-        console.log('[ContaModal] Inicializando com dados:', conta);
-        setFormData({
-          con_nome: conta.con_nome || '',
-          con_tipo: conta.con_tipo || 'banco',
-          con_limite: (conta.con_limite || 0).toString(),
-          con_banco: conta.con_banco || ''
-        });
-      } else {
-        setFormData({
-          con_nome: '',
-          con_tipo: 'banco',
-          con_limite: '0',
-          con_banco: ''
-        });
-      }
+    if (open && conta) {
+      console.log('Conta recebida:', conta); // Log para depuração
+      setFormData({
+        con_nome: conta.con_nome || '',
+        con_tipo: conta.con_tipo || 'banco',
+        con_limite: (conta.con_limite || 0).toString(),
+        con_banco: conta.con_banco || ''
+      });
+    } else if (open && !conta) {
+      setFormData({
+        con_nome: '',
+        con_tipo: 'banco',
+        con_limite: '0',
+        con_banco: ''
+      });
     }
-  }, [open, conta]);
+  }, [conta, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +76,7 @@ const ContaModal = ({
         con_grupo: grupoId
       };
 
-      if (conta?.con_id) {
+      if (conta) {
         const { error } = await supabase
           .from('contas')
           .update(payload)
@@ -131,7 +128,7 @@ const ContaModal = ({
               onValueChange={val => setFormData({...formData, con_tipo: val})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue placeholder="Selecione o tipo" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-white border shadow-lg rounded-xl">
                 <SelectItem value="banco">Banco / Corrente</SelectItem>
