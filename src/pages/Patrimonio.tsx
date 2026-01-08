@@ -210,7 +210,12 @@ const Patrimonio = () => {
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleViewLancamentos(conta.con_id); }}>
                           <FileText className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingConta(conta); setModalOpen(true); }}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { 
+                          e.stopPropagation(); 
+                          console.log('Conta sendo editada:', conta); // NOVO LOG AQUI
+                          setEditingConta(conta); 
+                          setModalOpen(true); 
+                        }}>
                           <Settings className="w-4 h-4" />
                         </Button>
                       </div>

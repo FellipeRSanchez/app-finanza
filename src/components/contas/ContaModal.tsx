@@ -101,6 +101,8 @@ const ContaModal = ({
     }
   };
 
+  const predefinedAccountTypes = ['banco', 'cartao', 'dinheiro', 'investimento'];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-white border border-border-light shadow-xl p-6 rounded-3xl">
@@ -128,13 +130,17 @@ const ContaModal = ({
               onValueChange={val => setFormData({...formData, con_tipo: val})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue />
+                <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
               <SelectContent className="bg-white border shadow-lg rounded-xl">
                 <SelectItem value="banco">Banco / Corrente</SelectItem>
                 <SelectItem value="cartao">Cartão de Crédito</SelectItem>
                 <SelectItem value="dinheiro">Carteira (Dinheiro)</SelectItem>
                 <SelectItem value="investimento">Investimentos</SelectItem>
+                {/* Adiciona o tipo atual como opção se não estiver na lista predefinida */}
+                {!predefinedAccountTypes.includes(formData.con_tipo) && formData.con_tipo && (
+                  <SelectItem value={formData.con_tipo}>{formData.con_tipo} (Outro)</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
