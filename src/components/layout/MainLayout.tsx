@@ -13,11 +13,11 @@ interface MainLayoutProps {
   children: React.ReactNode;
   title: string;
   hideGlobalSearch?: boolean;
-  hideValues: boolean; // Now a prop
-  setHideValues: (hide: boolean) => void; // Now a prop
+  hideValues?: boolean; // Made optional
+  setHideValues?: (hide: boolean) => void; // Made optional
 }
 
-const MainLayout = ({ children, title, hideGlobalSearch, hideValues, setHideValues }: MainLayoutProps) => {
+const MainLayout = ({ children, title, hideGlobalSearch, hideValues = false, setHideValues = () => {} }: MainLayoutProps) => {
   const { loading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -48,8 +48,8 @@ const MainLayout = ({ children, title, hideGlobalSearch, hideValues, setHideValu
 
       {/* Mobile Sidebar Overlay */}
       {isMobile && sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden" 
           onClick={() => setSidebarOpen(false)}
         >
           <div className="w-72 h-full" onClick={(e) => e.stopPropagation()}>
@@ -60,15 +60,15 @@ const MainLayout = ({ children, title, hideGlobalSearch, hideValues, setHideValu
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar
-          onMenuClick={() => setSidebarOpen(true)}
-          title={title}
+        <Topbar 
+          onMenuClick={() => setSidebarOpen(true)} 
+          title={title} 
           hideGlobalSearch={hideGlobalSearch}
           hideValues={hideValues}
           setHideValues={setHideValues}
         />
         <main className="flex-1 overflow-y-auto p-6">
-          {children} {/* Render children directly, hideValues is passed to Route elements */}
+          {children}
           <MadeWithDyad />
         </main>
       </div>
