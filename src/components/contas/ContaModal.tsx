@@ -7,7 +7,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter 
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,6 +110,12 @@ const ContaModal = ({
     }
   };
 
+  // Crie uma lista de todos os tipos de conta, incluindo o tipo atual se não for predefinido
+  const allAccountTypes = [...predefinedAccountTypes];
+  if (formData.con_tipo && !predefinedAccountTypes.some(type => type.value === formData.con_tipo)) {
+    allAccountTypes.push({ value: formData.con_tipo, label: `${formData.con_tipo} (Outro)` });
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-white border border-border-light shadow-xl p-6 rounded-3xl">
@@ -116,6 +123,9 @@ const ContaModal = ({
           <DialogTitle className="text-xl font-black text-[#141118]">
             {conta ? 'Editar Conta' : 'Nova Conta'}
           </DialogTitle>
+          <DialogDescription>
+            {conta ? 'Edite os detalhes da sua conta existente.' : 'Preencha os campos para adicionar uma nova conta.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
@@ -136,24 +146,19 @@ const ContaModal = ({
               onValueChange={val => setFormData({...formData, con_tipo: val})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue>
+                <SelectValue placeholder="Selecione o tipo">
                   {formData.con_tipo ? (
-                    // Encontra o rótulo predefinido ou usa o valor como "Outro"
-                    predefinedAccountTypes.find(type => type.value === formData.con_tipo)?.label || 
-                    `${formData.con_tipo} (Outro)`
+                    allAccountTypes.find(type => type.value === formData.con_tipo)?.label || 
+                    <span className="text-gray-400">Selecione o tipo</span> // Fallback se ainda não encontrar
                   ) : (
                     <span className="text-gray-400">Selecione o tipo</span>
                   )}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-white border shadow-lg rounded-xl">
-                {predefinedAccountTypes.map(type => (
+                {allAccountTypes.map(type => (
                   <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                 ))}
-                {/* Adiciona o tipo atual como opção se não estiver na lista predefinida */}
-                {formData.con_tipo && !predefinedAccountTypes.some(type => type.value === formData.con_tipo) && (
-                  <SelectItem value={formData.con_tipo}>{formData.con_tipo} (Outro)</SelectItem>
-                )}
               </SelectContent>
             </Select>
           </div>
