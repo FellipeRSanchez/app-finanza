@@ -44,6 +44,14 @@ const ContaModal = ({
     con_banco: ''
   });
 
+  // Definir tipos de conta predefinidos com seus rótulos de exibição
+  const predefinedAccountTypes = [
+    { value: 'banco', label: 'Banco / Corrente' },
+    { value: 'cartao', label: 'Cartão de Crédito' },
+    { value: 'dinheiro', label: 'Carteira (Dinheiro)' },
+    { value: 'investimento', label: 'Investimentos' },
+  ];
+
   useEffect(() => {
     if (open && conta) {
       console.log('Conta recebida:', conta); // Log para depuração
@@ -101,8 +109,6 @@ const ContaModal = ({
     }
   };
 
-  const predefinedAccountTypes = ['banco', 'cartao', 'dinheiro', 'investimento'];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-white border border-border-light shadow-xl p-6 rounded-3xl">
@@ -130,15 +136,22 @@ const ContaModal = ({
               onValueChange={val => setFormData({...formData, con_tipo: val})}
             >
               <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 font-bold">
-                <SelectValue placeholder="Selecione o tipo" />
+                <SelectValue>
+                  {formData.con_tipo ? (
+                    // Encontra o rótulo predefinido ou usa o valor como "Outro"
+                    predefinedAccountTypes.find(type => type.value === formData.con_tipo)?.label || 
+                    `${formData.con_tipo} (Outro)`
+                  ) : (
+                    <span className="text-gray-400">Selecione o tipo</span>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-white border shadow-lg rounded-xl">
-                <SelectItem value="banco">Banco / Corrente</SelectItem>
-                <SelectItem value="cartao">Cartão de Crédito</SelectItem>
-                <SelectItem value="dinheiro">Carteira (Dinheiro)</SelectItem>
-                <SelectItem value="investimento">Investimentos</SelectItem>
+                {predefinedAccountTypes.map(type => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                ))}
                 {/* Adiciona o tipo atual como opção se não estiver na lista predefinida */}
-                {!predefinedAccountTypes.includes(formData.con_tipo) && formData.con_tipo && (
+                {formData.con_tipo && !predefinedAccountTypes.some(type => type.value === formData.con_tipo) && (
                   <SelectItem value={formData.con_tipo}>{formData.con_tipo} (Outro)</SelectItem>
                 )}
               </SelectContent>
