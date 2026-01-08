@@ -60,15 +60,15 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
-          {/* Pass hideValues directly to each page component */}
+          {/* Pass hideValues and setHideValues directly to each page component */}
           <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
           <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
-          <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
-          <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
-          <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
-          <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
-          <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
-          <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
+          <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/cartoes" element={<Cartoes hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/investimentos" element={<Investimentos hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/fechamento" element={<Fechamento hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/relatorios" element={<Relatorios hideValues={hideValues} setHideValues={setHideValues} />} />
           <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
