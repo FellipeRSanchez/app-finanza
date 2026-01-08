@@ -259,32 +259,26 @@ const Cartoes = ({ hideValues }: { hideValues: boolean }) => {
   return (
     <MainLayout title="Meus Cartões">
       <div className="mx-auto max-w-[1200px] flex flex-col gap-8 pb-20">
-        {/* Header with search and actions */}
+        {/* Search bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-[#141118] dark:text-white">Meus Cartões</h1>
-            <p className="text-sm text-[#756189] dark:text-[#a08cb6] font-medium">Ratio Financial Systems</p>
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar cartão ou transação..."
+              className="pl-10 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus:ring-2 focus:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all shadow-sm"
+              type="text"
+            />
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar cartão ou transação..."
-                className="pl-10 pr-4 rounded-xl bg-background-light dark:bg-[#2c2435] border-none text-sm focus:ring-2 focus:ring-primary/30 w-full placeholder-gray-400 dark:text-white transition-all shadow-sm"
-                type="text"
-              />
-            </div>
-            <Button 
-              onClick={handleOpenAddCardModal}
-              className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all active:translate-y-0"
-            >
-              <Plus className="w-5 h-5" />
-              Adicionar Cartão
-            </Button>
-          </div>
+          <Button 
+            onClick={handleOpenAddCardModal}
+            className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-xl font-bold text-sm shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:-translate-y-0.5 transition-all active:translate-y-0"
+          >
+            <Plus className="w-5 h-5" />
+            Adicionar Cartão
+          </Button>
         </div>
 
         {/* Summary Cards */}
