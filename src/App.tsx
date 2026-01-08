@@ -60,7 +60,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
-          {/* Pass hideValues directly to each page component */}
+          {/* Pass hideValues and setHideValues directly to each page component */}
           <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
           <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
           <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} setHideValues={setHideValues} />} />
