@@ -1,15 +1,14 @@
 "use client";
-import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Upload, ArrowDown, Check, Info, CloudUpload } from 'lucide-react';
+import { Upload, ArrowDown, Check, Info, CloudUpload, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
-const ImportacaoExtratos = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
+const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -41,12 +40,11 @@ const ImportacaoExtratos = ({ hideValues, setHideValues }: { hideValues: boolean
   };
 
   return (
-    <MainLayout title="Importação de Extratos" hideValues={hideValues} setHideValues={setHideValues}>
-      <div className="max-w-5xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 pb-20">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-text-secondary-light dark:text-text-secondary-dark text-sm mb-1">
             <a className="hover:text-primary-new" href="#">Financeiro</a>
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            <ChevronRight className="w-4 h-4" />
             <span className="text-text-main-light dark:text-text-main-dark font-medium">Importação</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight text-text-main-light dark:text-text-main-dark">
@@ -208,7 +206,7 @@ const ImportacaoExtratos = ({ hideValues, setHideValues }: { hideValues: boolean
               </div>
             </div>
           </CardContent>
-          <div className="px-6 py-4 md:px-8 bg-background-light dark:bg-[#1e1629] border-t border-border-light dark:border-[#3a3045] flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <div className="px-6 py-4 md:px-8 bg-background-light dark:bg-[#1e1429] border-t border-border-light dark:border-[#3a3045] flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
             <Button variant="outline" className="w-full sm:w-auto px-6 py-3 rounded-xl border border-transparent text-sm font-bold text-text-secondary-light hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               Cancelar
             </Button>
@@ -237,7 +235,6 @@ const ImportacaoExtratos = ({ hideValues, setHideValues }: { hideValues: boolean
           <a className="hover:underline" href="#">Termos</a>
         </div>
       </div>
-    </MainLayout>
   );
 };
 

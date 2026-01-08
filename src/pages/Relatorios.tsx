@@ -1,5 +1,4 @@
 "use client";
-import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart, PieChart, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
@@ -15,7 +14,7 @@ interface CategoryStats {
   type: 'receita' | 'despesa';
 }
 
-const Relatorios = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
+const Relatorios = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('monthly');
   const [reportType, setReportType] = useState<'income' | 'expenses'>('expenses');
@@ -89,7 +88,6 @@ const Relatorios = ({ hideValues, setHideValues }: { hideValues: boolean; setHid
   };
 
   return (
-    <MainLayout title="Relatórios" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="space-y-6 p-4 lg:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -260,7 +258,6 @@ const Relatorios = ({ hideValues, setHideValues }: { hideValues: boolean; setHid
           </div>
         </div>
       </div>
-    </MainLayout>
   );
 };
 

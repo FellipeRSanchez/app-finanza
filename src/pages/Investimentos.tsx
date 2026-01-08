@@ -1,7 +1,6 @@
 "use client";
-import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
-import { TrendingUp, Landmark, Search, Database, ArrowUp, ChevronRight, MoreVertical, ChevronLeft, Plus, Wallet, Trash2, Settings, AlertCircle, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, Landmark, Search, Database, ArrowUp, ChevronRight, ChevronLeft, Wallet, Trash2, Settings, AlertCircle, ArrowDownRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -12,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { showError, showSuccess } from '@/utils/toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
-const Investimentos = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
+const Investimentos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [investimentos, setInvestimentos] = useState<any[]>([]);
@@ -83,7 +82,6 @@ const Investimentos = ({ hideValues, setHideValues }: { hideValues: boolean; set
 
   const handleEditInvestment = (investment: any) => {
     showError("Funcionalidade de edição de investimento ainda não implementada.");
-    console.log("Edit investment:", investment);
   };
 
   const totalInvestido = investimentos.reduce((sum, inv) => sum + Number(inv.inv_avg_price || 0), 0);
@@ -92,7 +90,7 @@ const Investimentos = ({ hideValues, setHideValues }: { hideValues: boolean; set
   const rentabilidadePercent = totalInvestido > 0 ? (rentabilidadeValor / totalInvestido) * 100 : 0;
 
   return (
-    <MainLayout title="Investimentos" hideValues={hideValues} setHideValues={setHideValues}>
+    <>
       <div className="container mx-auto max-w-7xl p-4 lg:p-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -271,7 +269,7 @@ const Investimentos = ({ hideValues, setHideValues }: { hideValues: boolean; set
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </>
   );
 };
 

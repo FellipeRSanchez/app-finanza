@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import MainLayout from '@/components/layout/MainLayout';
 import { Card } from '@/components/ui/card';
 import { CreditCard, Landmark, ReceiptText, Wallet, Plus, ArrowRight, TrendingUp, DollarSign, Settings, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,7 +29,7 @@ interface CardAccount {
   diasParaVencimento: number | null;
 }
 
-const Cartoes = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
+const Cartoes = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [pagamentoFaturaModalOpen, setPagamentoFaturaModalOpen] = useState(false);
@@ -101,7 +100,6 @@ const Cartoes = ({ hideValues, setHideValues }: { hideValues: boolean; setHideVa
             let cycleEndDate: Date;
             let invoiceDueDate: Date;
             const currentMonthFechamento = new Date(currentYear, currentMonth, diaFechamento);
-            const lastMonthFechamento = new Date(currentYear, currentMonth - 1, diaFechamento);
 
             if (today.getDate() > diaFechamento) {
               cycleStartDate = addMonths(new Date(currentYear, currentMonth - 1, diaFechamento + 1), 0);
@@ -216,16 +214,14 @@ const Cartoes = ({ hideValues, setHideValues }: { hideValues: boolean; setHideVa
 
   if (loading) {
     return (
-      <MainLayout title="Meus Cartões" hideValues={hideValues} setHideValues={setHideValues}>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
   return (
-    <MainLayout title="Meus Cartões" hideValues={hideValues} setHideValues={setHideValues}>
+    <>
       <div className="mx-auto max-w-[1200px] flex flex-col gap-8 pb-20">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -292,7 +288,6 @@ const Cartoes = ({ hideValues, setHideValues }: { hideValues: boolean; setHideVa
               </div>
             ) : (
               creditCardAccounts.map((card) => {
-                const isNegativeBalance = card.saldoAtual < 0;
                 const utilizedPercentage = card.con_limite > 0 ? (Math.abs(card.saldoAtual) / card.con_limite) * 100 : 0;
                 const availableLimit = card.con_limite + card.saldoAtual;
                 let statusClass = '';
@@ -431,7 +426,7 @@ const Cartoes = ({ hideValues, setHideValues }: { hideValues: boolean; setHideVa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </MainLayout>
+    </>
   );
 };
 

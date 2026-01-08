@@ -2,13 +2,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import MainLayout from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Lock, Unlock, CheckCircle, CalendarDays, Edit, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Lock, Unlock, CalendarDays, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { format, endOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -26,7 +24,7 @@ interface CategoryTotal {
   type: 'receita' | 'despesa';
 }
 
-const Fechamento = ({ hideValues, setHideValues }: { hideValues: boolean; setHideValues: (hide: boolean) => void; }) => {
+const Fechamento = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [fechamento, setFechamento] = useState<Fechamento | null>(null);
   const [observacoes, setObservacoes] = useState('');
@@ -217,16 +215,13 @@ const Fechamento = ({ hideValues, setHideValues }: { hideValues: boolean; setHid
 
   if (loading) {
     return (
-      <MainLayout title="Fechamento Mensal" hideValues={hideValues} setHideValues={setHideValues}>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </MainLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
   return (
-    <MainLayout title="Fechamento Mensal" hideValues={hideValues} setHideValues={setHideValues}>
       <div className="max-w-[1200px] mx-auto flex flex-col gap-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-col gap-1">
@@ -368,7 +363,6 @@ const Fechamento = ({ hideValues, setHideValues }: { hideValues: boolean; setHid
           </div>
         </div>
       </div>
-    </MainLayout>
   );
 };
 
