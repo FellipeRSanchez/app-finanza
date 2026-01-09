@@ -111,7 +111,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         setCategories(categoriesRes.data || []);
         setExistingLancamentos(lancamentosRes.data || []);
 
-        const transferenciaCat = categoriesRes.data?.find((cat: any) => cat.cat_nome === 'Transferência entre Contas' && cat.cat_tipo === 'sistema');
+        // Flexible search for transfer category
+        const transferenciaCat = categoriesRes.data?.find((cat: any) => 
+          (cat.cat_nome.toLowerCase().includes('transferência') || cat.cat_nome.toLowerCase().includes('transferencia')) 
+          && cat.cat_tipo === 'sistema'
+        );
+        
         setSystemCategories({
           transferenciaId: transferenciaCat?.cat_id || null,
         });
@@ -275,7 +280,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       let suggestedCategoryId: string | null = null;
       let suggestedCategoryName: string | null = null;
       let isTransferCandidate = false;
-      let selectedLinkedAccountId: string | null = null;
 
       const lowerDescription = tx.description.toLowerCase();
       const transferKeywords = ['transferencia', 'ted', 'pix', 'doc', 'transferência']; // Added 'transferência'
@@ -297,7 +301,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           // For transfers, suggest the system transfer category but leave the linked account blank for user selection
           suggestedCategoryId = systemCategories.transferenciaId;
           suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
-          // selectedLinkedAccountId remains null, user will choose
         } else {
           const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
           if (matchedCategoryId) {
@@ -571,7 +574,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <SelectTrigger className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
+                    <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
                       {accounts.map(acc => (
                         <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome} ({acc.con_tipo})</SelectItem>
                       ))}
@@ -675,22 +678,22 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
                 {/* Table Wrapper */}
                 <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <Table className="min-w-[780px]"> {/* Adjusted min-w */}
+                  <Table className="min-w-[850px]"> {/* Increased min-width for better fit */}
                     <TableHeader>
                       <TableRow className="bg-background-light dark:bg-[#1e1629] border-b border-border-light dark:border-[#3a3045]">
-                        <TableHead className="w-[90px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Data
                         </TableHead>
-                        <TableHead className="flex-1 px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="flex-1 min-w-[200px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Descrição
                         </TableHead>
-                        <TableHead className="w-[200px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
-                          Categoria
+                        <TableHead className="w-[220px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                          Categoria / Conta
                         </TableHead>
-                        <TableHead className="w-[110px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
+                        <TableHead className="w-[120px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
                           Valor
                         </TableHead>
-                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
+                        <TableHead className="w-[110px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
                           Status
                         </TableHead>
                         <TableHead className="w-[80px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
@@ -717,20 +720,21 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                               {transaction.description}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap">
-                              {transaction.isTransferCandidate && transaction.suggestedCategoryId === systemCategories.transferenciaId ? (
+                              {/* Show account selector if it's a transfer candidate, else show category selector */}
+                              {transaction.isTransferCandidate ? (
                                 <Select
                                   value={transaction.selectedLinkedAccountId || ''}
                                   onValueChange={(value) => {
                                     setProcessedTransactions(prev => prev.map(tx =>
-                                      tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value } : tx
+                                      tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value, suggestedCategoryId: systemCategories.transferenciaId } : tx
                                     ));
                                   }}
                                   disabled={transaction.ignore}
                                 >
-                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
-                                    <SelectValue placeholder="Conta Destino/Origem" />
+                                  <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                    <SelectValue placeholder="Selecione a outra conta" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-[100]" position="popper" sideOffset={5}>
                                     {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
                                       <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                                     ))}
@@ -748,13 +752,17 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   }}
                                   disabled={transaction.ignore || !useAiClassification}
                                 >
-                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                  <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Selecione Categoria" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-[100]" position="popper" sideOffset={5}>
                                     {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
                                       <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                     ))}
+                                    {/* Adicionar opção de transferência manualmente se não detectado */}
+                                    {systemCategories.transferenciaId && (
+                                       <SelectItem value={systemCategories.transferenciaId}>Transferência entre Contas</SelectItem>
+                                    )}
                                   </SelectContent>
                                 </Select>
                               )}
