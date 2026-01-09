@@ -433,7 +433,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     try {
       for (const tx of transactionsToProcess) {
-        if (tx.suggestedCategoryId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
+        const catId = tx.suggestedCategoryId && tx.suggestedCategoryId !== '' ? tx.suggestedCategoryId : null;
+
+        if (catId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
           // Logic for creating two-leg transfer
           const sourceAccountId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
           const destinationAccountId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
@@ -451,7 +453,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_valor: -transferValue,
               lan_categoria: systemCategories.transferenciaId,
               lan_conta: sourceAccountId,
-              lan_conciliated: true,
+              lan_conciliado: true,
               lan_grupo: grupoId,
               lan_importado: true,
             }).select().single();
@@ -466,7 +468,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_valor: transferValue,
               lan_categoria: systemCategories.transferenciaId,
               lan_conta: destinationAccountId,
-              lan_conciliated: true,
+              lan_conciliado: true,
               lan_grupo: grupoId,
               lan_importado: true,
             }).select().single();
@@ -484,7 +486,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               tra_conta_destino: destinationAccountId,
               tra_lancamento_origem: lanOrigem.lan_id,
               tra_lancamento_destino: lanDestino.lan_id,
-              tra_conciliated: true,
+              tra_conciliado: true,
             }).select().single();
           if (traError) throw traError;
 
@@ -502,10 +504,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_data: tx.date,
               lan_descricao: tx.description,
               lan_valor: tx.value,
-              lan_categoria: tx.suggestedCategoryId,
+              lan_categoria: catId,
               lan_conta: selectedAccountId,
               lan_grupo: grupoId,
-              lan_conciliated: true,
+              lan_conciliado: true,
               lan_importado: true,
             });
           if (error) throw error;
