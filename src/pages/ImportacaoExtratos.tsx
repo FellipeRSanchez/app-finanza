@@ -168,7 +168,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               resolve(parsedData.map((row, index) => ({
                 id: `temp-${index}`, // Temporary ID
                 date: row.data || row.date || row.dtposted || row.dtuser || '', // Common CSV date headers
-                description: row.descricao || row.description || row.memo || '', // Common CSV description headers
+                description: row.descricao || row.description || row.memo || row.historico || row.transacao || row.item || '', // Added more common headers for description
                 value: cleanAndParseFloat(row.valor || row.amount || '0'), // Use helper for value
                 originalRow: row,
               })));
@@ -268,7 +268,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           suggestedCategoryName = categories.find(c => c.cat_id === matchedCategoryId)?.cat_nome || null;
         } else {
           // Fallback to a default category if no match and AI is "active"
-          const defaultCategory = categories.find(c => c.cat_nome === (type === 'receita' ? 'Outras Receitas' : 'Outras Despesas'));
+          const defaultCategory = categories.find(c => c.cat_nome === (type === 'receita' ? 'Outras Receitas' : 'Outras Despesas') && c.cat_tipo === type);
           if (defaultCategory) {
             suggestedCategoryId = defaultCategory.cat_id;
             suggestedCategoryName = defaultCategory.cat_nome;
