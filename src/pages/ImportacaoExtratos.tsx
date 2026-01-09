@@ -111,7 +111,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         setCategories(categoriesRes.data || []);
         setExistingLancamentos(lancamentosRes.data || []);
 
-        // Flexible search for transfer category
         const transferenciaCat = categoriesRes.data?.find((cat: any) => 
           (cat.cat_nome.toLowerCase().includes('transferência') || cat.cat_nome.toLowerCase().includes('transferencia')) 
           && cat.cat_tipo === 'sistema'
@@ -298,7 +297,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       // AI Classification (mocked)
       if (useAiClassification && status === 'new') {
         if (isTransferCandidate && systemCategories.transferenciaId) {
-          // For transfers, suggest the system transfer category but leave the linked account blank for user selection
+          // For transfers, suggest the system transfer category
           suggestedCategoryId = systemCategories.transferenciaId;
           suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
         } else {
@@ -434,7 +433,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     try {
       for (const tx of transactionsToProcess) {
-        if (tx.isTransferCandidate && tx.selectedLinkedAccountId && systemCategories.transferenciaId) {
+        if (tx.suggestedCategoryId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
           // Logic for creating two-leg transfer
           const sourceAccountId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
           const destinationAccountId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
@@ -678,7 +677,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
                 {/* Table Wrapper */}
                 <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <Table className="min-w-[850px]"> {/* Increased min-width for better fit */}
+                  <Table className="min-w-[850px]">
                     <TableHeader>
                       <TableRow className="bg-background-light dark:bg-[#1e1629] border-b border-border-light dark:border-[#3a3045]">
                         <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
@@ -720,27 +719,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                               {transaction.description}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap">
-                              {/* Show account selector if it's a transfer candidate, else show category selector */}
-                              {transaction.isTransferCandidate ? (
-                                <Select
-                                  value={transaction.selectedLinkedAccountId || ''}
-                                  onValueChange={(value) => {
-                                    setProcessedTransactions(prev => prev.map(tx =>
-                                      tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value, suggestedCategoryId: systemCategories.transferenciaId } : tx
-                                    ));
-                                  }}
-                                  disabled={transaction.ignore}
-                                >
-                                  <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
-                                    <SelectValue placeholder="Selecione a outra conta" />
-                                  </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-[100]" position="popper" sideOffset={5}>
-                                    {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
-                                      <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
+                              <div className="flex flex-col gap-2">
                                 <Select
                                   value={transaction.suggestedCategoryId || ''}
                                   onValueChange={(value) => {
@@ -750,22 +729,39 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                         : tx
                                     ));
                                   }}
-                                  disabled={transaction.ignore || !useAiClassification}
+                                  disabled={transaction.ignore}
                                 >
                                   <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Selecione Categoria" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-[100]" position="popper" sideOffset={5}>
-                                    {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
+                                    {categories.map(cat => (
                                       <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                     ))}
-                                    {/* Adicionar opção de transferência manualmente se não detectado */}
-                                    {systemCategories.transferenciaId && (
-                                       <SelectItem value={systemCategories.transferenciaId}>Transferência entre Contas</SelectItem>
-                                    )}
                                   </SelectContent>
                                 </Select>
-                              )}
+
+                                {transaction.suggestedCategoryId === systemCategories.transferenciaId && (
+                                  <Select
+                                    value={transaction.selectedLinkedAccountId || ''}
+                                    onValueChange={(value) => {
+                                      setProcessedTransactions(prev => prev.map(tx =>
+                                        tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value } : tx
+                                      ));
+                                    }}
+                                    disabled={transaction.ignore}
+                                  >
+                                    <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold">
+                                      <SelectValue placeholder="Selecionar Banco" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
+                                      {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
+                                        <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right font-mono ${
                               transaction.value > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
