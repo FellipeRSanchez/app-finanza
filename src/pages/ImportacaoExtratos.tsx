@@ -571,7 +571,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <SelectTrigger className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper"> {/* Added z-50 and position="popper" */}
+                    <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
                       {accounts.map(acc => (
                         <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome} ({acc.con_tipo})</SelectItem>
                       ))}
@@ -730,7 +730,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Conta Destino/Origem" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
                                     {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
                                       <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                                     ))}
@@ -751,7 +751,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Selecione Categoria" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50"> {/* Added z-50 */}
                                     {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
                                       <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                     ))}
