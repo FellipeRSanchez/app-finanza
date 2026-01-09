@@ -31,6 +31,7 @@ interface Category {
 }
 
 interface ParsedTransaction {
+  id: string; // Added id to interface to fix TS error
   date: string; // Original date string from file
   description: string;
   value: number;
@@ -38,7 +39,6 @@ interface ParsedTransaction {
 }
 
 interface ProcessedTransaction extends ParsedTransaction {
-  id: string; // Unique ID for UI rendering
   type: 'receita' | 'despesa';
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
