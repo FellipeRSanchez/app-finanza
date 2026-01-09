@@ -165,13 +165,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             complete: (results) => {
               parsedData = results.data;
               // Expecting: Column 0 = Date, Column 1 = Description, Column 2 = Value
-              resolve(parsedData.map((row, index) => ({
-                id: `temp-${index}`,
-                date: row[0] ? String(row[0]) : '',
-                description: row[1] ? String(row[1]) : '',
-                value: cleanAndParseFloat(row[2] || '0'),
-                originalRow: row,
-              })));
+              resolve(parsedData.map((row, index) => {
+                if (!row[0] || !row[1] || !row[2]) {
+                  console.warn(`Skipping row ${index + 1} due to missing data:`, row);
+                  return null; // Skip rows with missing essential data
+                }
+                return {
+                  id: `temp-${index}`,
+                  date: String(row[0]),
+                  description: String(row[1]),
+                  value: cleanAndParseFloat(row[2]),
+                  originalRow: row,
+                };
+              }).filter(Boolean) as ParsedTransaction[]); // Filter out nulls
             },
             error: (err) => reject(err),
           });
@@ -213,13 +219,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             return;
           }
 
-          resolve(dataRows.map((row: any, index) => ({
-            id: `temp-${index}`,
-            date: row[dateCol] ? String(row[dateCol]) : '',
-            description: row[descCol] ? String(row[descCol]) : '',
-            value: cleanAndParseFloat(row[valueCol] || '0'), // Use helper for value
-            originalRow: row,
-          })));
+          resolve(dataRows.map((row: any, index) => {
+            if (!row[dateCol] || !row[descCol] || !row[valueCol]) {
+              console.warn(`Skipping row ${index + 1} due to missing data in Excel:`, row);
+              return null; // Skip rows with missing essential data
+            }
+            return {
+              id: `temp-${index}`,
+              date: String(row[dateCol]),
+              description: String(row[descCol]),
+              value: cleanAndParseFloat(row[valueCol]), // Use helper for value
+              originalRow: row,
+            };
+          }).filter(Boolean) as ParsedTransaction[]); // Filter out nulls
 
         } else {
           reject(new Error('Formato de arquivo não suportado.'));
@@ -466,7 +478,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <SelectTrigger className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-card-light dark:bg-card-dark"> {/* Added background */}
                       {accounts.map(acc => (
                         <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome} ({acc.con_tipo})</SelectItem>
                       ))}
@@ -570,25 +582,25 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
                 {/* Table Wrapper */}
                 <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <Table>
+                  <Table className="min-w-full"> {/* Added min-w-full */}
                     <TableHeader>
                       <TableRow className="bg-background-light dark:bg-[#1e1629] border-b border-border-light dark:border-[#3a3045]">
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Data
                         </TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[200px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Descrição
                         </TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[180px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Categoria
                         </TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
+                        <TableHead className="w-[120px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
                           Valor
                         </TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
+                        <TableHead className="w-[120px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
                           Status
                         </TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
+                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
                           Ações
                         </TableHead>
                       </TableRow>
@@ -626,7 +638,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                 <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                   <SelectValue placeholder="Selecione Categoria" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-card-light dark:bg-card-dark"> {/* Added background */}
                                   {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
                                     <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                   ))}
