@@ -531,6 +531,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     .reduce((sum, tx) => sum + Math.abs(tx.value), 0);
   const previewBalance = previewTotalIncome - previewTotalExpenses;
 
+  // Filter unique categories by name to prevent duplicates
+  const uniqueCategories = categories.reduce((acc: Category[], current) => {
+    const x = acc.find(item => item.cat_nome === current.cat_nome);
+    if (!x) {
+      return acc.concat([current]);
+    } else {
+      return acc;
+    }
+  }, []);
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       {/* Page Heading */}
@@ -735,7 +745,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                     <SelectValue placeholder="Selecione Categoria" />
                                   </SelectTrigger>
                                   <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
-                                    {categories.map(cat => (
+                                    {uniqueCategories.map(cat => (
                                       <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                     ))}
                                   </SelectContent>
