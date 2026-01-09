@@ -55,20 +55,18 @@ const AppContent = () => {
 
   return (
     <AuthProvider>
-      {/* MainLayout now wraps the entire authenticated content, including the Routes */}
       <MainLayout title={currentTitle} hideValues={hideValues} setHideValues={setHideValues}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
-          {/* Pass hideValues and setHideValues to page components that need them */}
           <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
           <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
-          <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} setHideValues={setHideValues} />} />
-          <Route path="/cartoes" element={<Cartoes hideValues={hideValues} setHideValues={setHideValues} />} />
-          <Route path="/investimentos" element={<Investimentos hideValues={hideValues} setHideValues={setHideValues} />} />
-          <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} setHideValues={setHideValues} />} />
-          <Route path="/fechamento" element={<Fechamento hideValues={hideValues} setHideValues={setHideValues} />} />
-          <Route path="/relatorios" element={<Relatorios hideValues={hideValues} setHideValues={setHideValues} />} />
+          <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
+          <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
+          <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
+          <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
+          <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
+          <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
           <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
