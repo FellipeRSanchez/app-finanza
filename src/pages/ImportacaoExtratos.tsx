@@ -451,7 +451,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_valor: -transferValue,
               lan_categoria: systemCategories.transferenciaId,
               lan_conta: sourceAccountId,
-              lan_conciliado: true,
+              lan_conciliated: true,
               lan_grupo: grupoId,
               lan_importado: true,
             }).select().single();
@@ -466,7 +466,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_valor: transferValue,
               lan_categoria: systemCategories.transferenciaId,
               lan_conta: destinationAccountId,
-              lan_conciliado: true,
+              lan_conciliated: true,
               lan_grupo: grupoId,
               lan_importado: true,
             }).select().single();
@@ -484,7 +484,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               tra_conta_destino: destinationAccountId,
               tra_lancamento_origem: lanOrigem.lan_id,
               tra_lancamento_destino: lanDestino.lan_id,
-              tra_conciliado: true,
+              tra_conciliated: true,
             }).select().single();
           if (traError) throw traError;
 
@@ -505,7 +505,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_categoria: tx.suggestedCategoryId,
               lan_conta: selectedAccountId,
               lan_grupo: grupoId,
-              lan_conciliado: true,
+              lan_conciliated: true,
               lan_importado: true,
             });
           if (error) throw error;
@@ -531,12 +531,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     .reduce((sum, tx) => sum + Math.abs(tx.value), 0);
   const previewBalance = previewTotalIncome - previewTotalExpenses;
 
-  // Filter unique categories by name to prevent duplicates
+  // Filter unique categories by name (CASE-INSENSITIVE) and prefer 'sistema'
   const uniqueCategories = categories.reduce((acc: Category[], current) => {
-    const x = acc.find(item => item.cat_nome === current.cat_nome);
-    if (!x) {
+    const existingIndex = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
+    
+    if (existingIndex === -1) {
       return acc.concat([current]);
     } else {
+      // If a duplicate name is found, prefer the one with type 'sistema'
+      if (current.cat_tipo === 'sistema' && acc[existingIndex].cat_tipo !== 'sistema') {
+        const newAcc = [...acc];
+        newAcc[existingIndex] = current;
+        return newAcc;
+      }
       return acc;
     }
   }, []);
