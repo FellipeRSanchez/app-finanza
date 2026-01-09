@@ -15,8 +15,6 @@ import * as XLSX from 'xlsx'; // For XLSX parsing
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch'; // Assuming shadcn switch
-import { cn } from '@/lib/utils'; // Importando a função 'cn' que faltava
-
 
 // Interfaces for data
 interface Account {
@@ -719,49 +717,47 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                               {transaction.description}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap">
-                              <div className="relative z-[100]"> {/* Wrapper with high z-index */}
-                                {transaction.isTransferCandidate && transaction.suggestedCategoryId === systemCategories.transferenciaId ? (
-                                  <Select
-                                    value={transaction.selectedLinkedAccountId || ''}
-                                    onValueChange={(value) => {
-                                      setProcessedTransactions(prev => prev.map(tx =>
-                                        tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value } : tx
-                                      ));
-                                    }}
-                                    disabled={transaction.ignore}
-                                  >
-                                    <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
-                                      <SelectValue placeholder="Conta Destino/Origem" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card-light dark:bg-card-dark z-[101]" position="popper"> {/* Higher z-index */}
-                                      {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
-                                        <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Select
-                                    value={transaction.suggestedCategoryId || ''}
-                                    onValueChange={(value) => {
-                                      setProcessedTransactions(prev => prev.map(tx =>
-                                        tx.id === transaction.id
-                                          ? { ...tx, suggestedCategoryId: value, suggestedCategoryName: categories.find(c => c.cat_id === value)?.cat_nome || null }
-                                          : tx
-                                      ));
-                                    }}
-                                    disabled={transaction.ignore || !useAiClassification}
-                                  >
-                                    <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
-                                      <SelectValue placeholder="Selecione Categoria" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card-light dark:bg-card-dark z-[101]" position="popper"> {/* Higher z-index */}
-                                      {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
-                                        <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              </div>
+                              {transaction.isTransferCandidate && transaction.suggestedCategoryId === systemCategories.transferenciaId ? (
+                                <Select
+                                  value={transaction.selectedLinkedAccountId || ''}
+                                  onValueChange={(value) => {
+                                    setProcessedTransactions(prev => prev.map(tx =>
+                                      tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value } : tx
+                                    ));
+                                  }}
+                                  disabled={transaction.ignore}
+                                >
+                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                    <SelectValue placeholder="Conta Destino/Origem" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
+                                    {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
+                                      <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Select
+                                  value={transaction.suggestedCategoryId || ''}
+                                  onValueChange={(value) => {
+                                    setProcessedTransactions(prev => prev.map(tx =>
+                                      tx.id === transaction.id
+                                        ? { ...tx, suggestedCategoryId: value, suggestedCategoryName: categories.find(c => c.cat_id === value)?.cat_nome || null }
+                                        : tx
+                                    ));
+                                  }}
+                                  disabled={transaction.ignore || !useAiClassification}
+                                >
+                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                    <SelectValue placeholder="Selecione Categoria" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
+                                    {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
+                                      <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </TableCell>
                             <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right font-mono ${
                               transaction.value > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
@@ -853,7 +849,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
         {/* Footer for Upload Step */}
         {uploadStep === 'upload' && (
-          <div className="px-6 py-4 md:px-8 bg-background-light dark:bg-[#1e1629] border-t border-border-light dark:border-[#3a3045] flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <div className="px-6 py-4 md:px-8 bg-background-light dark:bg-[#1e1429] border-t border-border-light dark:border-[#3a3045] flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
             <Button variant="outline" onClick={handleRemoveFile} className="w-full sm:w-auto px-6 py-3 rounded-xl border border-transparent text-sm font-bold text-text-secondary-light hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
               Cancelar
             </Button>
