@@ -55,22 +55,30 @@ const AppContent = () => {
 
   return (
     <AuthProvider>
-      <MainLayout title={currentTitle} hideValues={hideValues} setHideValues={setHideValues}>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
-          <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
-          <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
-          <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
-          <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
-          <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
-          <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
-          <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
-          <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </MainLayout>
+      <Routes>
+        {/* Rotas Públicas - NÃO envolvidas pelo MainLayout */}
+        <Route path="/" element={<Index />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Rotas Autenticadas - Envolvidas pelo MainLayout */}
+        <Route path="*" element={
+          <MainLayout title={currentTitle} hideValues={hideValues} setHideValues={setHideValues}>
+            <Routes>
+              {/* Essas rotas só serão renderizadas se a verificação de autenticação do MainLayout passar */}
+              <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
+              <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
+              <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
+              <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
+              <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
+              <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
+              <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
+              <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
+              <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
+              <Route path="*" element={<NotFound />} /> {/* Este NotFound é para rotas autenticadas */}
+            </Routes>
+          </MainLayout>
+        } />
+      </Routes>
     </AuthProvider>
   );
 };
