@@ -44,6 +44,8 @@ interface ProcessedTransaction extends ParsedTransaction {
   suggestedCategoryName: string | null;
   status: 'new' | 'duplicate' | 'ignored';
   ignore: boolean;
+  isTransferCandidate: boolean; // New field
+  selectedLinkedAccountId: string | null; // New field
   lan_id_duplicate?: string; // If duplicate, ID of existing lancamento
 }
 
@@ -272,21 +274,29 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       let status: 'new' | 'duplicate' | 'ignored' = 'new';
       let suggestedCategoryId: string | null = null;
       let suggestedCategoryName: string | null = null;
+      let isTransferCandidate = false;
+      let selectedLinkedAccountId: string | null = null;
 
-      // Duplicate detection
-      const duplicateKey = `${formattedDate}-${tx.description}-${value}`;
-      if (existingTransactionsSet.has(duplicateKey)) {
-        status = 'duplicate';
+      const lowerDescription = tx.description.toLowerCase();
+      const transferKeywords = ['transferencia', 'ted', 'pix', 'doc', 'transferência']; // Added 'transferência'
+      if (transferKeywords.some(keyword => lowerDescription.includes(keyword))) {
+        isTransferCandidate = true;
+      }
+
+      // Duplicate detection (only for non-transfer candidates for now, transfers will be handled differently)
+      if (!isTransferCandidate) {
+        const duplicateKey = `${formattedDate}-${tx.description}-${value}`;
+        if (existingTransactionsSet.has(duplicateKey)) {
+          status = 'duplicate';
+        }
       }
 
       // AI Classification (mocked)
       if (useAiClassification && status === 'new') {
-        const lowerDescription = tx.description.toLowerCase();
-        const isTransferKeyword = ['transferencia', 'ted', 'pix', 'doc'].some(keyword => lowerDescription.includes(keyword));
-
-        if (isTransferKeyword && systemCategories.transferenciaId) {
+        if (isTransferCandidate && systemCategories.transferenciaId) {
           suggestedCategoryId = systemCategories.transferenciaId;
           suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+          // Do not pre-select linked account, let user choose
         } else {
           const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
           if (matchedCategoryId) {
@@ -306,6 +316,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         suggestedCategoryName,
         status,
         ignore: status === 'duplicate', // Ignore duplicates by default
+        isTransferCandidate: isTransferCandidate,
+        selectedLinkedAccountId: null, // Initialize
       });
     }
     setProcessedTransactions(processed);
@@ -407,30 +419,96 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
 
     setIsImporting(true);
-    const transactionsToInsert = processedTransactions
-      .filter(tx => tx.status === 'new' && !tx.ignore)
-      .map(tx => ({
-        lan_data: tx.date,
-        lan_descricao: tx.description,
-        lan_valor: tx.value,
-        lan_categoria: tx.suggestedCategoryId,
-        lan_conta: selectedAccountId,
-        lan_grupo: grupoId,
-        lan_conciliado: true, // Assuming imported transactions are reconciled
-        lan_importado: true,
-      }));
+    const transactionsToProcess = processedTransactions
+      .filter(tx => tx.status === 'new' && !tx.ignore);
 
-    if (transactionsToInsert.length === 0) {
+    if (transactionsToProcess.length === 0) {
       showError('Nenhum lançamento válido para importar.');
       setIsImporting(false);
       return;
     }
 
     try {
-      const { error } = await supabase.from('lancamentos').insert(transactionsToInsert);
-      if (error) throw error;
+      for (const tx of transactionsToProcess) {
+        if (tx.isTransferCandidate && tx.selectedLinkedAccountId && systemCategories.transferenciaId) {
+          // Logic for creating two-leg transfer
+          const sourceAccountId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
+          const destinationAccountId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
+          const transferValue = Math.abs(tx.value);
 
-      showSuccess(`${transactionsToInsert.length} lançamentos importados com sucesso!`);
+          const sourceAccountName = accounts.find(a => a.con_id === sourceAccountId)?.con_nome;
+          const destinationAccountName = accounts.find(a => a.con_id === destinationAccountId)?.con_nome;
+
+          // Create debit leg
+          const { data: lanOrigem, error: loError } = await supabase
+            .from('lancamentos')
+            .insert({
+              lan_data: tx.date,
+              lan_descricao: `Transferência para ${destinationAccountName}`,
+              lan_valor: -transferValue,
+              lan_categoria: systemCategories.transferenciaId,
+              lan_conta: sourceAccountId,
+              lan_conciliado: true,
+              lan_grupo: grupoId,
+              lan_importado: true,
+            }).select().single();
+          if (loError) throw loError;
+
+          // Create credit leg
+          const { data: lanDestino, error: ldError } = await supabase
+            .from('lancamentos')
+            .insert({
+              lan_data: tx.date,
+              lan_descricao: `Transferência de ${sourceAccountName}`,
+              lan_valor: transferValue,
+              lan_categoria: systemCategories.transferenciaId,
+              lan_conta: destinationAccountId,
+              lan_conciliado: true,
+              lan_grupo: grupoId,
+              lan_importado: true,
+            }).select().single();
+          if (ldError) throw ldError;
+
+          // Create the transfer record
+          const { data: newTra, error: traError } = await supabase
+            .from('transferencias')
+            .insert({
+              tra_grupo: grupoId,
+              tra_data: tx.date,
+              tra_descricao: tx.description, // Use original description for transfer record
+              tra_valor: transferValue,
+              tra_conta_origem: sourceAccountId,
+              tra_conta_destino: destinationAccountId,
+              tra_lancamento_origem: lanOrigem.lan_id,
+              tra_lancamento_destino: lanDestino.lan_id,
+              tra_conciliado: true,
+            }).select().single();
+          if (traError) throw traError;
+
+          // Link lancamentos back to transfer
+          await supabase
+            .from('lancamentos')
+            .update({ lan_transferencia: newTra.tra_id })
+            .in('lan_id', [lanOrigem.lan_id, lanDestino.lan_id]);
+
+        } else {
+          // Insert as a single lancamento
+          const { error } = await supabase
+            .from('lancamentos')
+            .insert({
+              lan_data: tx.date,
+              lan_descricao: tx.description,
+              lan_valor: tx.value,
+              lan_categoria: tx.suggestedCategoryId,
+              lan_conta: selectedAccountId,
+              lan_grupo: grupoId,
+              lan_conciliado: true,
+              lan_importado: true,
+            });
+          if (error) throw error;
+        }
+      }
+      showSuccess(`${transactionsToProcess.length} lançamentos importados com sucesso!`);
       handleRemoveFile(); // Clear form after successful import
       setUploadStep('upload');
     } catch (error) {
@@ -605,7 +683,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                         <TableHead className="flex-1 px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Descrição
                         </TableHead>
-                        <TableHead className="w-[150px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[200px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Categoria
                         </TableHead>
                         <TableHead className="w-[110px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
@@ -638,26 +716,47 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                               {transaction.description}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap">
-                              <Select
-                                value={transaction.suggestedCategoryId || ''}
-                                onValueChange={(value) => {
-                                  setProcessedTransactions(prev => prev.map(tx =>
-                                    tx.id === transaction.id
-                                      ? { ...tx, suggestedCategoryId: value, suggestedCategoryName: categories.find(c => c.cat_id === value)?.cat_nome || null }
-                                      : tx
-                                  ));
-                                }}
-                                disabled={transaction.ignore || !useAiClassification}
-                              >
-                                <SelectTrigger className="w-[150px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
-                                  <SelectValue placeholder="Selecione Categoria" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-card-light dark:bg-card-dark"> {/* Added background */}
-                                  {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
-                                    <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              {transaction.isTransferCandidate && transaction.suggestedCategoryId === systemCategories.transferenciaId ? (
+                                <Select
+                                  value={transaction.selectedLinkedAccountId || ''}
+                                  onValueChange={(value) => {
+                                    setProcessedTransactions(prev => prev.map(tx =>
+                                      tx.id === transaction.id ? { ...tx, selectedLinkedAccountId: value } : tx
+                                    ));
+                                  }}
+                                  disabled={transaction.ignore}
+                                >
+                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                    <SelectValue placeholder="Conta Destino/Origem" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-card-light dark:bg-card-dark">
+                                    {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
+                                      <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Select
+                                  value={transaction.suggestedCategoryId || ''}
+                                  onValueChange={(value) => {
+                                    setProcessedTransactions(prev => prev.map(tx =>
+                                      tx.id === transaction.id
+                                        ? { ...tx, suggestedCategoryId: value, suggestedCategoryName: categories.find(c => c.cat_id === value)?.cat_nome || null }
+                                        : tx
+                                    ));
+                                  }}
+                                  disabled={transaction.ignore || !useAiClassification}
+                                >
+                                  <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                    <SelectValue placeholder="Selecione Categoria" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-card-light dark:bg-card-dark">
+                                    {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
+                                      <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </TableCell>
                             <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right font-mono ${
                               transaction.value > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
