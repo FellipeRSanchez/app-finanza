@@ -294,9 +294,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       // AI Classification (mocked)
       if (useAiClassification && status === 'new') {
         if (isTransferCandidate && systemCategories.transferenciaId) {
+          // For transfers, suggest the system transfer category but leave the linked account blank for user selection
           suggestedCategoryId = systemCategories.transferenciaId;
           suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
-          // Do not pre-select linked account, let user choose
+          // selectedLinkedAccountId remains null, user will choose
         } else {
           const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
           if (matchedCategoryId) {
@@ -317,7 +318,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         status,
         ignore: status === 'duplicate', // Ignore duplicates by default
         isTransferCandidate: isTransferCandidate,
-        selectedLinkedAccountId: null, // Initialize
+        selectedLinkedAccountId: null, // Initialize, user will select if it's a transfer
       });
     }
     setProcessedTransactions(processed);
@@ -570,7 +571,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <SelectTrigger className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-card-light dark:bg-card-dark"> {/* Added background */}
+                    <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper"> {/* Added z-50 and position="popper" */}
                       {accounts.map(acc => (
                         <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome} ({acc.con_tipo})</SelectItem>
                       ))}
@@ -674,7 +675,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
                 {/* Table Wrapper */}
                 <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <Table className="min-w-[780px]"> {/* Adjusted min-width */}
+                  <Table className="min-w-[780px]"> {/* Adjusted min-w */}
                     <TableHeader>
                       <TableRow className="bg-background-light dark:bg-[#1e1629] border-b border-border-light dark:border-[#3a3045]">
                         <TableHead className="w-[90px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
@@ -729,7 +730,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Conta Destino/Origem" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark">
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
                                     {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
                                       <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                                     ))}
@@ -750,7 +751,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                     <SelectValue placeholder="Selecione Categoria" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-card-light dark:bg-card-dark">
+                                  <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper">
                                     {categories.filter(c => c.cat_tipo !== 'sistema').map(cat => (
                                       <SelectItem key={cat.cat_id} value={cat.cat_id}>{cat.cat_nome}</SelectItem>
                                     ))}
