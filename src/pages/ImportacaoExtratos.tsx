@@ -159,17 +159,17 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
         if (file.name.endsWith('.csv')) {
           Papa.parse(text, {
-            header: true,
+            header: false, // Assume no header for standard format
             skipEmptyLines: true,
-            dynamicTyping: false, // Set to false to manually handle number parsing
-            transformHeader: (header) => header.toLowerCase().replace(/[^a-z0-9]/gi, ''), // Clean headers
+            dynamicTyping: false,
             complete: (results) => {
               parsedData = results.data;
+              // Expecting: Column 0 = Date, Column 1 = Description, Column 2 = Value
               resolve(parsedData.map((row, index) => ({
-                id: `temp-${index}`, // Temporary ID
-                date: row.data || row.date || row.dtposted || row.dtuser || '', // Common CSV date headers
-                description: row.descricao || row.description || row.memo || row.historico || row.transacao || row.item || row.detalhes || row.observacao || row.nome || '', // Added more common headers for description
-                value: cleanAndParseFloat(row.valor || row.amount || '0'), // Use helper for value
+                id: `temp-${index}`,
+                date: row[0] ? String(row[0]) : '',
+                description: row[1] ? String(row[1]) : '',
+                value: cleanAndParseFloat(row[2] || '0'),
                 originalRow: row,
               })));
             },
@@ -481,7 +481,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <div className="text-sm text-yellow-800 dark:text-yellow-200">
                     <p className="font-bold mb-1">Atenção ao formato</p>
                     <p>
-                      Para arquivos CSV, certifique-se que as colunas de data e valor estejam corretamente formatadas (dd/mm/aaaa).
+                      Para arquivos CSV, utilize o formato padrão: **Coluna 1: Data (DD/MM/AAAA ou AAAA-MM-DD), Coluna 2: Descrição, Coluna 3: Valor (1.234,56 ou 1234.56)**.
                     </p>
                   </div>
                 </div>
