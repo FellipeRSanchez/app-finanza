@@ -138,6 +138,17 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     return undefined;
   }, []);
 
+  // Helper to clean and parse numerical values
+  const cleanAndParseFloat = (value: any): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      // Remove thousands separators (dots) and replace decimal comma with dot
+      const cleanedValue = value.replace(/\./g, '').replace(',', '.');
+      return parseFloat(cleanedValue);
+    }
+    return 0;
+  };
+
   // Parse file content
   const parseFile = useCallback(async (file: File): Promise<ParsedTransaction[]> => {
     return new Promise((resolve, reject) => {
@@ -150,7 +161,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           Papa.parse(text, {
             header: true,
             skipEmptyLines: true,
-            dynamicTyping: true,
+            dynamicTyping: false, // Set to false to manually handle number parsing
             transformHeader: (header) => header.toLowerCase().replace(/[^a-z0-9]/gi, ''), // Clean headers
             complete: (results) => {
               parsedData = results.data;
@@ -158,7 +169,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 id: `temp-${index}`, // Temporary ID
                 date: row.data || row.date || row.dtposted || row.dtuser || '', // Common CSV date headers
                 description: row.descricao || row.description || row.memo || '', // Common CSV description headers
-                value: parseFloat(row.valor || row.amount || '0'), // Common CSV value headers
+                value: cleanAndParseFloat(row.valor || row.amount || '0'), // Use helper for value
                 originalRow: row,
               })));
             },
@@ -172,7 +183,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           let index = 0;
           while ((match = transactionRegex.exec(text)) !== null) {
             const [, type, date, amount, memo] = match;
-            const value = parseFloat(amount);
+            const value = cleanAndParseFloat(amount); // Use helper for value
             transactions.push({
               id: `temp-${index++}`,
               date: date.substring(0, 8), // OFX date format YYYYMMDD
@@ -206,7 +217,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             id: `temp-${index}`,
             date: row[dateCol] ? String(row[dateCol]) : '',
             description: row[descCol] ? String(row[descCol]) : '',
-            value: parseFloat(String(row[valueCol] || '0').replace(',', '.')),
+            value: cleanAndParseFloat(row[valueCol] || '0'), // Use helper for value
             originalRow: row,
           })));
 
