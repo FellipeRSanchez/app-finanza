@@ -63,6 +63,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [processedTransactions, setProcessedTransactions] = useState<ProcessedTransaction[]>([]);
   const [useAiClassification, setUseAiClassification] = useState(true);
+  const [systemCategories, setSystemCategories] = useState({ transferenciaId: null as string | null });
+
 
   // Summary for confirmation
   const totalValid = processedTransactions.filter(t => t.status === 'new' && !t.ignore).length;
@@ -106,6 +108,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         setAccounts(accountsRes.data || []);
         setCategories(categoriesRes.data || []);
         setExistingLancamentos(lancamentosRes.data || []);
+
+        const transferenciaCat = categoriesRes.data?.find((cat: any) => cat.cat_nome === 'Transferência entre Contas' && cat.cat_tipo === 'sistema');
+        setSystemCategories({
+          transferenciaId: transferenciaCat?.cat_id || null,
+        });
 
         if (accountsRes.data && accountsRes.data.length > 0) {
           setSelectedAccountId(accountsRes.data[0].con_id); // Default to first account
@@ -274,12 +281,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
       // AI Classification (mocked)
       if (useAiClassification && status === 'new') {
-        const matchedCategoryId = existingDescriptionsMap.get(tx.description.toLowerCase());
-        if (matchedCategoryId) {
-          suggestedCategoryId = matchedCategoryId;
-          suggestedCategoryName = categories.find(c => c.cat_id === matchedCategoryId)?.cat_nome || null;
+        const lowerDescription = tx.description.toLowerCase();
+        const isTransferKeyword = ['transferencia', 'ted', 'pix', 'doc'].some(keyword => lowerDescription.includes(keyword));
+
+        if (isTransferKeyword && systemCategories.transferenciaId) {
+          suggestedCategoryId = systemCategories.transferenciaId;
+          suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+        } else {
+          const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
+          if (matchedCategoryId) {
+            suggestedCategoryId = matchedCategoryId;
+            suggestedCategoryName = categories.find(c => c.cat_id === matchedCategoryId)?.cat_nome || null;
+          }
         }
-        // Removed the fallback to "Outras Receitas" or "Outras Despesas"
       }
 
       processed.push({
@@ -296,7 +310,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification]);
+  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId]);
 
   // Helper to parse various date formats (YYYYMMDD, YYYY-MM-DD, DD/MM/YYYY)
   const parseDateString = (dateStr: string): Date => {
@@ -582,25 +596,25 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </div>
                 {/* Table Wrapper */}
                 <div className="overflow-x-auto rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <Table className="min-w-full"> {/* Added min-w-full */}
+                  <Table className="min-w-[780px]"> {/* Adjusted min-width */}
                     <TableHeader>
                       <TableRow className="bg-background-light dark:bg-[#1e1629] border-b border-border-light dark:border-[#3a3045]">
-                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[90px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Data
                         </TableHead>
-                        <TableHead className="w-[200px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="flex-1 px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Descrição
                         </TableHead>
-                        <TableHead className="w-[180px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
+                        <TableHead className="w-[150px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider">
                           Categoria
                         </TableHead>
-                        <TableHead className="w-[120px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
+                        <TableHead className="w-[110px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-right">
                           Valor
                         </TableHead>
-                        <TableHead className="w-[120px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
+                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
                           Status
                         </TableHead>
-                        <TableHead className="w-[100px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
+                        <TableHead className="w-[80px] px-6 py-4 text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark uppercase tracking-wider text-center">
                           Ações
                         </TableHead>
                       </TableRow>
@@ -620,7 +634,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                             <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-text-main-light dark:text-text-main-dark font-medium">
                               {format(parseDateString(transaction.date), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
-                            <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-text-main-light dark:text-text-main-dark">
+                            <TableCell className="px-6 py-4 text-sm text-text-main-light dark:text-text-main-dark">
                               {transaction.description}
                             </TableCell>
                             <TableCell className="px-6 py-4 whitespace-nowrap">
@@ -635,7 +649,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                 }}
                                 disabled={transaction.ignore || !useAiClassification}
                               >
-                                <SelectTrigger className="w-[180px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
+                                <SelectTrigger className="w-[150px] h-8 rounded-lg text-xs bg-background-light dark:bg-[#1e1629] border-border-light dark:border-[#3a3045]">
                                   <SelectValue placeholder="Selecione Categoria" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-card-light dark:bg-card-dark"> {/* Added background */}
