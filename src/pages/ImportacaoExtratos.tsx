@@ -431,9 +431,17 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       return;
     }
 
+    // Validate that all transactions to be processed have a category
+    const transactionsWithoutCategory = transactionsToProcess.filter(tx => !tx.suggestedCategoryId || tx.suggestedCategoryId === '');
+    if (transactionsWithoutCategory.length > 0) {
+      showError('Por favor, selecione uma categoria para todos os lançamentos válidos.');
+      setIsImporting(false);
+      return;
+    }
+
     try {
       for (const tx of transactionsToProcess) {
-        const catId = tx.suggestedCategoryId && tx.suggestedCategoryId !== '' ? tx.suggestedCategoryId : null;
+        const catId = tx.suggestedCategoryId; // Now guaranteed to be non-null/empty by validation
 
         if (catId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
           // Logic for creating two-leg transfer
