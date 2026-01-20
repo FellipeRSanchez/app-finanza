@@ -34,6 +34,7 @@ interface Transaction {
   categorias?: { cat_nome: string };
   lan_conciliado: boolean; // Adicionado para refletir o status do DB
   is_checked: boolean; // Estado local do checkbox
+  saldo_acumulado: number; // Novo campo para o saldo acumulado
 }
 
 interface DailyBalance {
@@ -134,7 +135,13 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .order('lan_data', { ascending: true });
 
       if (tError) throw tError;
-      setTransactions((transactionsData || []).map((t: any) => ({ ...t, is_checked: t.lan_conciliado }))); // Inicializar is_checked com lan_conciliado
+      
+      let currentAccumulatedBalance = initial;
+      const processedTransactions = (transactionsData || []).map((t: any) => {
+        currentAccumulatedBalance += t.lan_valor;
+        return { ...t, is_checked: t.lan_conciliado, saldo_acumulado: currentAccumulatedBalance };
+      });
+      setTransactions(processedTransactions);
 
       // 3. Evolução diária do saldo
       const { data: dailyEvolutionData } = await supabase
@@ -365,6 +372,41 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </CardContent>
       </Card>
 
+      {/* Card 3: Chart */}
+      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
+        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
+          <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary-new" /> Evolução do Saldo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0 py-6 h-80">
+          {dailyEvolution.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-text-secondary-light dark:text-text-secondary-dark">
+              Nenhum dado para o gráfico no período selecionado.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={dailyEvolution.map(d => ({ ...d, data: format(parseISO(d.data), 'dd/MM', { locale: ptBR }) }))}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0dbe6" className="dark:stroke-[#2d2438]" />
+                <XAxis dataKey="data" stroke="#756189" className="text-xs" />
+                <YAxis stroke="#756189" className="text-xs" tickFormatter={formatCurrency} />
+                <Tooltip
+                  formatter={(value: number) => formatCurrency(value)}
+                  labelFormatter={(label: string) => `Data: ${label}`}
+                  contentStyle={{ backgroundColor: 'var(--card-light)', borderColor: 'var(--border-light)', borderRadius: '0.5rem' }}
+                  labelStyle={{ color: 'var(--text-main-light)' }}
+                  itemStyle={{ color: 'var(--text-main-light)' }}
+                />
+                <Line type="monotone" dataKey="saldo_acumulado" stroke="var(--primary-new)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Card 4: Transactions Table */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438] flex-row items-center justify-between">
@@ -408,12 +450,15 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
                   <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
                     Valor
                   </TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
+                    Saldo Acumulado
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
+                    <TableCell colSpan={6} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
                       Nenhum lançamento {showUncheckedOnly ? 'não conferido' : ''} no período.
                     </TableCell>
                   </TableRow>
@@ -450,6 +495,9 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
                           isHighValue && "text-lg"
                         )}>
                           {formatCurrency(t.lan_valor)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-bold text-text-main-light dark:text-text-main-dark">
+                          {formatCurrency(t.saldo_acumulado)}
                         </TableCell>
                       </TableRow>
                     );
