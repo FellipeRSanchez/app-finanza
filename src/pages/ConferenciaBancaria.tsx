@@ -22,7 +22,7 @@ interface Account {
   con_nome: string;
   con_tipo: string;
   con_limite: number;
-  created_at?: string; // Added created_at to Account interface
+  created_at?: string;
 }
 
 interface Transaction {
@@ -31,8 +31,8 @@ interface Transaction {
   lan_descricao: string;
   lan_valor: number;
   lan_categoria: string;
-  categorias?: { cat_nome: string }; // Added categorias to Transaction interface
-  is_checked: boolean; // Local state for reconciliation
+  categorias?: { cat_nome: string };
+  is_checked: boolean;
 }
 
 interface DailyBalance {
@@ -50,7 +50,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
   const [initialBalance, setInitialBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [finalBalanceCalculated, setFinalBalanceCalculated] = useState<number>(0);
   const [dailyEvolution, setDailyEvolution] = useState<DailyBalance[]>([]);
   const [bankStatementBalance, setBankStatementBalance] = useState<string>('');
   const [showUncheckedOnly, setShowUncheckedOnly] = useState(false);
@@ -60,19 +59,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
 
-  useEffect(() => {
-    if (user) {
-      fetchAccounts();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (selectedAccountId && startDate && endDate) {
-      fetchReconciliationData();
-    }
-  }, [selectedAccountId, startDate, endDate]);
-
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     try {
       const { data: userData } = await supabase
         .from('usuarios')
@@ -80,16 +67,13 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .eq('usu_id', user?.id)
         .single();
 
-      if (!userData?.usu_grupo) {
-        showError('Grupo do usuário não encontrado.');
-        return;
-      }
+      if (!userData?.usu_grupo) return;
 
       const { data, error } = await supabase
         .from('contas')
-        .select('con_id, con_nome, con_tipo, con_limite, created_at') // Select created_at
+        .select('con_id, con_nome, con_tipo, con_limite, created_at')
         .eq('con_grupo', userData.usu_grupo)
-        .neq('con_tipo', 'cartao'); // Exclude credit cards for this view
+        .neq('con_tipo', 'cartao');
 
       if (error) throw error;
       setAccounts(data || []);
@@ -100,13 +84,14 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       console.error('Error fetching accounts:', error);
       showError('Erro ao carregar contas.');
     }
-  };
+  }, [user, selectedAccountId]);
 
-  const fetchReconciliationData = async () => {
+  const fetchReconciliationData = useCallback(async () => {
+    if (!selectedAccountId) return;
     setLoading(true);
     try {
       // 1. Saldo inicial do período
-      const { data: initialBalanceData, error: ibError } = await supabase
+      const { data: initialBalanceData } = await supabase
         .from('vw_saldo_diario_conta')
         .select('saldo_acumulado')
         .eq('lan_conta', selectedAccountId)
@@ -115,34 +100,15 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .limit(1)
         .single();
 
-      if (ibError && ibError.code !== 'PGRST116') throw ibError; // PGRST116 means no rows found
-      const initial = initialBalanceData?.saldo_acumulado || 0;
-      setInitialBalance(initial);
-
-      // If no initial balance from view, use con_limite if startDate is before account creation
-      if (initial === 0) {
+      let initial = initialBalanceData?.saldo_acumulado || 0;
+      
+      if (!initialBalanceData) {
         const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
-        if (selectedAccount) {
-          const { data: firstTransactionDateData, error: ftdError } = await supabase
-            .from('lancamentos')
-            .select('lan_data')
-            .eq('lan_conta', selectedAccountId)
-            .order('lan_data', { ascending: true })
-            .limit(1)
-            .single();
-          
-          if (ftdError && ftdError.code !== 'PGRST116') throw ftdError;
-
-          const accountCreationDate = parseISO(selectedAccount.created_at || format(new Date(0), 'yyyy-MM-dd')); // Fallback to epoch if no created_at
-          const firstTransactionDate = firstTransactionDateData ? parseISO(firstTransactionDateData.lan_data) : null;
-
-          // If the selected start date is before the first transaction or account creation, use con_limite as initial
-          if (parseISO(startDate) <= accountCreationDate || (firstTransactionDate && parseISO(startDate) <= firstTransactionDate)) {
-            setInitialBalance(selectedAccount.con_limite || 0);
-          }
+        if (selectedAccount && parseISO(startDate) <= parseISO(selectedAccount.created_at || '')) {
+          initial = selectedAccount.con_limite || 0;
         }
       }
-
+      setInitialBalance(initial);
 
       // 2. Movimentação do período
       const { data: transactionsData, error: tError } = await supabase
@@ -156,21 +122,8 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       if (tError) throw tError;
       setTransactions((transactionsData || []).map((t: any) => ({ ...t, is_checked: false })));
 
-      // 3. Saldo final do período
-      const { data: finalBalanceData, error: fbError } = await supabase
-        .from('vw_saldo_diario_conta')
-        .select('saldo_acumulado')
-        .eq('lan_conta', selectedAccountId)
-        .lte('data', endDate)
-        .order('data', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (fbError && fbError.code !== 'PGRST116') throw fbError;
-      setFinalBalanceCalculated(finalBalanceData?.saldo_acumulado || initial); // If no transactions, final is initial
-
-      // 4. Evolução diária do saldo (gráfico)
-      const { data: dailyEvolutionData, error: deError } = await supabase
+      // 3. Evolução diária do saldo
+      const { data: dailyEvolutionData } = await supabase
         .from('vw_saldo_diario_conta')
         .select('data, saldo_acumulado')
         .eq('lan_conta', selectedAccountId)
@@ -178,24 +131,27 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .lte('data', endDate)
         .order('data', { ascending: true });
 
-      if (deError) throw deError;
       setDailyEvolution(dailyEvolutionData || []);
 
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
-      showError('Erro ao carregar dados da conferência bancária.');
+      showError('Erro ao carregar dados da conferência.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedAccountId, startDate, endDate, accounts]);
+
+  useEffect(() => {
+    if (user) fetchAccounts();
+  }, [user, fetchAccounts]);
 
   const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + t.lan_valor, 0);
   const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(t.lan_valor), 0);
-  const saldoCalculadoMovimentacoes = initialBalance + totalEntradas - totalSaidas;
+  const saldoCalculado = initialBalance + totalEntradas - totalSaidas;
 
   const bankStatementBalanceNum = parseFloat(bankStatementBalance.replace(',', '.')) || 0;
-  const difference = bankStatementBalanceNum - saldoCalculadoMovimentacoes;
-  const isReconciled = Math.abs(difference) < 0.01; // Allow for minor floating point differences
+  const difference = bankStatementBalanceNum - saldoCalculado;
+  const isReconciled = Math.abs(difference) < 0.01;
 
   const handleTransactionCheck = (id: string) => {
     setTransactions(prev =>
@@ -209,40 +165,15 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
   const handleDateRangeChange = (period: string) => {
     const today = new Date();
-    let newStartDate = startDate;
-    let newEndDate = endDate;
-
-    switch (period) {
-      case 'thisMonth':
-        newStartDate = format(startOfMonth(today), 'yyyy-MM-dd');
-        newEndDate = format(endOfMonth(today), 'yyyy-MM-dd');
-        break;
-      case 'lastMonth':
-        newStartDate = format(startOfMonth(subMonths(today, 1)), 'yyyy-MM-dd');
-        newEndDate = format(endOfMonth(subMonths(today, 1)), 'yyyy-MM-dd');
-        break;
-      case 'last7Days':
-        newStartDate = format(addDays(today, -6), 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
-      case 'last30Days':
-        newStartDate = format(addDays(today, -29), 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
-      default:
-        break;
+    if (period === 'thisMonth') {
+      setStartDate(format(startOfMonth(today), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(today), 'yyyy-MM-dd'));
+    } else if (period === 'lastMonth') {
+      const lastMonth = subMonths(today, 1);
+      setStartDate(format(startOfMonth(lastMonth), 'yyyy-MM-dd'));
+      setEndDate(format(endOfMonth(lastMonth), 'yyyy-MM-dd'));
     }
-    setStartDate(newStartDate);
-    setEndDate(newEndDate);
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
@@ -255,154 +186,111 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </p>
       </div>
 
-      {/* Card 1: Filters */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <Filter className="w-5 h-5 text-primary-new" /> Filtros de Conferência
+            <Filter className="w-5 h-5 text-primary-new" /> Filtros
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 py-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="account-select" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Conta Bancária
-            </Label>
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Conta</Label>
             <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-              <SelectTrigger id="account-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
+              <SelectTrigger className="w-full rounded-xl h-12 bg-background-light/50">
                 <SelectValue placeholder="Selecione uma conta..." />
               </SelectTrigger>
-              <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
+              <SelectContent>
                 {accounts.map(acc => (
                   <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="start-date" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Data Inicial
-            </Label>
-            <Input
-              id="start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
-            />
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Início</Label>
+            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl h-12" />
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="end-date" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Data Final
-            </Label>
-            <Input
-              id="end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
-            />
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Fim</Label>
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl h-12" />
           </div>
-          <div className="md:col-span-3 flex flex-wrap gap-2 mt-4">
+          <div className="md:col-span-3 flex flex-wrap gap-2 mt-2">
             <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('thisMonth')} className="rounded-full text-xs">Este Mês</Button>
             <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('lastMonth')} className="rounded-full text-xs">Mês Anterior</Button>
-            <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('last7Days')} className="rounded-full text-xs">Últimos 7 Dias</Button>
-            <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('last30Days')} className="rounded-full text-xs">Últimos 30 Dias</Button>
           </div>
         </CardContent>
-        <div className="flex justify-end pt-6 border-t border-border-light dark:border-[#2d2438]">
-          <Button
-            onClick={fetchReconciliationData}
-            disabled={!selectedAccountId || !startDate || !endDate || loading}
-            className="bg-primary-new hover:bg-primary-new/90 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-primary-new/20 transition-all transform active:scale-95"
-          >
+        <div className="flex justify-end pt-6 border-t border-border-light">
+          <Button onClick={fetchReconciliationData} className="bg-primary-new text-white font-bold py-3 px-8 rounded-xl shadow-lg">
             <RefreshCcw className="w-4 h-4 mr-2" /> Conferir Período
           </Button>
         </div>
       </Card>
 
-      {/* Card 2: Summary */}
-      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
-        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
-          <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <Scale className="w-5 h-5 text-primary-new" /> Resumo da Conferência
+      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light">
+        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light">
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <Scale className="w-5 h-5 text-primary-new" /> Resumo
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Saldo Inicial</p>
-            <p className="text-xl font-bold text-text-main-light dark:text-text-main-dark">{formatCurrency(initialBalance)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saldo Inicial</p>
+            <p className="text-xl font-bold">{formatCurrency(initialBalance)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Total Entradas</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalEntradas)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Entradas (+)</p>
+            <p className="text-xl font-bold text-emerald-600">{formatCurrency(totalEntradas)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Total Saídas</p>
-            <p className="text-xl font-bold text-rose-600 dark:text-rose-400">{formatCurrency(totalSaidas)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saídas (-)</p>
+            <p className="text-xl font-bold text-rose-600">{formatCurrency(totalSaidas)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Saldo Final Calculado</p>
-            <p className="text-xl font-bold text-text-main-light dark:text-text-main-dark">{formatCurrency(saldoCalculadoMovimentacoes)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saldo Final Sistema</p>
+            <p className="text-xl font-bold">{formatCurrency(saldoCalculado)}</p>
           </div>
-          <div className="md:col-span-2 lg:col-span-2 space-y-2">
-            <Label htmlFor="bank-statement-balance" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Saldo Informado pelo Banco
-            </Label>
+          <div className="md:col-span-2 space-y-2">
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Saldo no Extrato Bancário</Label>
             <Input
-              id="bank-statement-balance"
               type="number"
               step="0.01"
               value={bankStatementBalance}
               onChange={(e) => setBankStatementBalance(e.target.value)}
               placeholder="0,00"
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
+              className="rounded-xl h-12"
             />
           </div>
-          <div className="md:col-span-1 lg:col-span-1 space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Diferença</p>
-            <p className={cn("text-xl font-bold", isReconciled ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+          <div className="md:col-span-1 space-y-1">
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Diferença</p>
+            <p className={cn("text-xl font-bold", isReconciled ? 'text-emerald-600' : 'text-rose-600')}>
               {formatCurrency(difference)}
             </p>
           </div>
-          <div className="md:col-span-1 lg:col-span-1 flex items-end">
-            <Badge className={cn("w-full py-3 text-base font-bold flex items-center justify-center gap-2", isReconciled ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600')}>
-              {isReconciled ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+          <div className="md:col-span-1 flex items-end">
+            <Badge className={cn("w-full py-3 text-sm font-bold flex justify-center gap-2", isReconciled ? 'bg-emerald-500' : 'bg-rose-500')}>
+              {isReconciled ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
               {isReconciled ? 'CONFERE' : 'DIVERGE'}
             </Badge>
           </div>
         </CardContent>
       </Card>
 
-      {/* Card 3: Chart */}
-      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
-        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
-          <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
+      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light">
+        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light">
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-primary-new" /> Evolução do Saldo
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 py-6 h-80">
           {dailyEvolution.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-text-secondary-light dark:text-text-secondary-dark">
-              Nenhum dado para o gráfico no período selecionado.
-            </div>
+            <div className="flex items-center justify-center h-full text-text-secondary-light">Sem dados para o gráfico.</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={dailyEvolution.map(d => ({ ...d, data: format(parseISO(d.data), 'dd/MM', { locale: ptBR }) }))}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0dbe6" className="dark:stroke-[#2d2438]" />
-                <XAxis dataKey="data" stroke="#756189" className="text-xs" />
-                <YAxis stroke="#756189" className="text-xs" tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  labelFormatter={(label: string) => `Data: ${label}`}
-                  contentStyle={{ backgroundColor: 'var(--card-light)', borderColor: 'var(--border-light)', borderRadius: '0.5rem' }}
-                  labelStyle={{ color: 'var(--text-main-light)' }}
-                  itemStyle={{ color: 'var(--text-main-light)' }}
-                />
+              <LineChart data={dailyEvolution.map(d => ({ ...d, data: format(parseISO(d.data), 'dd/MM', { locale: ptBR }) }))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0dbe6" />
+                <XAxis dataKey="data" stroke="#756189" className="text-[10px]" />
+                <YAxis stroke="#756189" className="text-[10px]" tickFormatter={(v) => hideValues ? '***' : `R$ ${v}`} />
+                <Tooltip />
                 <Line type="monotone" dataKey="saldo_acumulado" stroke="var(--primary-new)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -410,85 +298,57 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </CardContent>
       </Card>
 
-      {/* Card 4: Transactions Table */}
-      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
-        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438] flex-row items-center justify-between">
-          <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-primary-new" /> Movimentações do Período
+      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light">
+        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light flex-row items-center justify-between">
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-primary-new" /> Movimentações
           </CardTitle>
-          <Button
-            variant="outline"
-            onClick={() => setShowUncheckedOnly(!showUncheckedOnly)}
-            className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark"
-          >
-            <Filter className="w-4 h-4 mr-2" /> {showUncheckedOnly ? 'Mostrar Todos' : 'Não Conferidos'}
+          <Button variant="outline" onClick={() => setShowUncheckedOnly(!showUncheckedOnly)} className="text-xs font-bold uppercase">
+            <Filter className="w-3 h-3 mr-2" /> {showUncheckedOnly ? 'Mostrar Todos' : 'Não Conferidos'}
           </Button>
         </CardHeader>
         <CardContent className="px-0 py-6">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-background-light/50 dark:bg-background-dark/30">
-                <TableRow className="border-border-light dark:border-[#2d2438]">
-                  <TableHead className="w-[50px] text-center text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px] text-center">
                     <CheckCircle2 className="w-4 h-4 mx-auto" />
                   </TableHead>
-                  <TableHead className="w-[100px] text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Data
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Descrição
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Categoria
-                  </TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Valor
-                  </TableHead>
+                  <TableHead className="w-[100px] text-[10px] font-black uppercase">Data</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase">Descrição</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase">Categoria</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
-                      Nenhum lançamento {showUncheckedOnly ? 'não conferido' : ''} no período.
-                    </TableCell>
+                    <TableCell colSpan={5} className="h-32 text-center opacity-60">Nenhum lançamento encontrado.</TableCell>
                   </TableRow>
                 ) : (
-                  filteredTransactions.map((t) => {
-                    const isIncome = t.lan_valor > 0;
-                    const isHighValue = Math.abs(t.lan_valor) > 1000; // Example threshold for highlighting
-                    return (
-                      <TableRow key={t.lan_id} className={cn(
-                        "group hover:bg-background-light/30 dark:hover:bg-[#2d2438]/30 transition-colors",
-                        t.is_checked && "bg-emerald-50/20 dark:bg-emerald-900/10"
-                      )}>
-                        <TableCell className="text-center">
-                          <input
-                            type="checkbox"
-                            checked={t.is_checked}
-                            onChange={() => handleTransactionCheck(t.lan_id)}
-                            className="form-checkbox h-4 w-4 text-primary-new rounded border-gray-300 focus:ring-primary-new dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-primary-new"
-                          />
-                        </TableCell>
-                        <TableCell className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark">
-                          {format(parseISO(t.lan_data), 'dd/MM/yyyy', { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className={cn("text-sm font-medium text-text-main-light dark:text-text-main-dark", isHighValue && "font-bold text-primary-new dark:text-white")}>
-                          {t.lan_descricao}
-                        </TableCell>
-                        <TableCell className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                          {t.categorias?.cat_nome || 'Sem Categoria'}
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-bold text-sm",
-                          isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
-                          isHighValue && "text-lg"
-                        )}>
-                          {formatCurrency(t.lan_valor)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  filteredTransactions.map((t) => (
+                    <TableRow key={t.lan_id} className={cn(t.is_checked && "bg-emerald-50/20")}>
+                      <TableCell className="text-center">
+                        <input
+                          type="checkbox"
+                          checked={t.is_checked}
+                          onChange={() => handleTransactionCheck(t.lan_id)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-new"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs font-bold text-text-secondary-light">
+                        {format(parseISO(t.lan_data), 'dd/MM/yyyy')}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{t.lan_descricao}</TableCell>
+                      <TableCell className="text-xs text-text-secondary-light">
+                        {t.categorias?.cat_nome || 'Sem Categoria'}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-bold", t.lan_valor > 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                        {formatCurrency(t.lan_valor)}
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
