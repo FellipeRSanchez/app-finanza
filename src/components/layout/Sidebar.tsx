@@ -9,7 +9,7 @@ import {
   BarChart3, 
   LogOut, 
   TrendingUp, 
-  Upload,
+  Scale, // Changed icon for reconciliation
   CheckCircle,
   Settings
 } from 'lucide-react';
@@ -19,10 +19,10 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Lançamentos', href: '/lancamentos', icon: FileText },
-  { name: 'Patrimônio', href: '/patrimonio', icon: Wallet }, // Updated name and icon
+  { name: 'Patrimônio', href: '/patrimonio', icon: Wallet },
   { name: 'Cartões', href: '/cartoes', icon: CreditCard },
   { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
-  { name: 'Importação', href: '/importacao-extratos', icon: Upload },
+  { name: 'Conferência Bancária', href: '/conferencia-bancaria', icon: Scale }, // Updated name and icon
   { name: 'Fechamento', href: '/fechamento', icon: CheckCircle },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
 ];
