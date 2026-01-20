@@ -12,7 +12,8 @@ import {
   Upload,
   CheckCircle,
   Settings,
-  Scale // Import Scale icon
+  Scale,
+  ReceiptText // Import ReceiptText icon for credit card reconciliation
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -26,7 +27,8 @@ const navigation = [
   { name: 'Importação', href: '/importacao-extratos', icon: Upload },
   { name: 'Fechamento', href: '/fechamento', icon: CheckCircle },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
-  { name: 'Conferência Bancária', href: '/conferencia-bancaria', icon: Scale }, // New navigation item
+  { name: 'Conferência Bancária', href: '/conferencia-bancaria', icon: Scale },
+  { name: 'Conferência de Cartão', href: '/conferencia-cartao', icon: ReceiptText }, // New navigation item
 ];
 
 const Sidebar = () => {

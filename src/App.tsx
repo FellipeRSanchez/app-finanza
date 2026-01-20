@@ -15,7 +15,8 @@ import Investimentos from "./pages/Investimentos";
 import ImportacaoExtratos from "./pages/ImportacaoExtratos";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
-import ConferenciaBancaria from "./pages/ConferenciaBancaria"; // Import the new page
+import ConferenciaBancaria from "./pages/ConferenciaBancaria";
+import ConferenciaCartao from "./pages/ConferenciaCartao"; // Import the new page
 import NotFound from "./pages/NotFound";
 import MainLayout from "./components/layout/MainLayout";
 import { useState } from "react";
@@ -41,8 +42,10 @@ const getTitleForPath = (pathname: string) => {
       return 'Fechamento Mensal';
     case '/relatorios':
       return 'Relatórios';
-    case '/conferencia-bancaria': // New route title
+    case '/conferencia-bancaria':
       return 'Conferência Bancária';
+    case '/conferencia-cartao': // New route title
+      return 'Conferência de Cartão';
     case '/configuracoes':
       return 'Configurações';
     default:
@@ -76,7 +79,8 @@ const AppContent = () => {
               <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
               <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
               <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
-              <Route path="/conferencia-bancaria" element={<ConferenciaBancaria hideValues={hideValues} />} /> {/* New route */}
+              <Route path="/conferencia-bancaria" element={<ConferenciaBancaria hideValues={hideValues} />} />
+              <Route path="/conferencia-cartao" element={<ConferenciaCartao hideValues={hideValues} />} /> {/* New route */}
               <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
               <Route path="*" element={<NotFound />} /> {/* Este NotFound é para rotas autenticadas */}
             </Routes>
