@@ -12,7 +12,7 @@ import Patrimonio from "./pages/Patrimonio";
 import Configuracoes from "./pages/Configuracoes";
 import Cartoes from "./pages/Cartoes";
 import Investimentos from "./pages/Investimentos";
-import ConferenciaBancaria from "./pages/ConferenciaBancaria"; // Updated import
+import ImportacaoExtratos from "./pages/ImportacaoExtratos";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import NotFound from "./pages/NotFound";
@@ -34,8 +34,8 @@ const getTitleForPath = (pathname: string) => {
       return 'Meus Cartões';
     case '/investimentos':
       return 'Investimentos';
-    case '/conferencia-bancaria': // Updated path
-      return 'Conferência Bancária'; // Updated title
+    case '/importacao-extratos':
+      return 'Importação de Extratos';
     case '/fechamento':
       return 'Fechamento Mensal';
     case '/relatorios':
@@ -70,7 +70,7 @@ const AppContent = () => {
               <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
               <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
               <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
-              <Route path="/conferencia-bancaria" element={<ConferenciaBancaria hideValues={hideValues} />} /> {/* Updated route */}
+              <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
               <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
               <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
               <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
