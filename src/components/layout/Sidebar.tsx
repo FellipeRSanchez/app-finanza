@@ -11,7 +11,8 @@ import {
   TrendingUp, 
   Upload,
   CheckCircle,
-  Settings
+  Settings,
+  Scale // Import Scale icon
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -19,12 +20,13 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Lançamentos', href: '/lancamentos', icon: FileText },
-  { name: 'Patrimônio', href: '/patrimonio', icon: Wallet }, // Updated name and icon
+  { name: 'Patrimônio', href: '/patrimonio', icon: Wallet },
   { name: 'Cartões', href: '/cartoes', icon: CreditCard },
   { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
   { name: 'Importação', href: '/importacao-extratos', icon: Upload },
   { name: 'Fechamento', href: '/fechamento', icon: CheckCircle },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
+  { name: 'Conferência Bancária', href: '/conferencia-bancaria', icon: Scale }, // New navigation item
 ];
 
 const Sidebar = () => {
