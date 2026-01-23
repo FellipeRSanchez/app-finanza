@@ -13,7 +13,7 @@ import {
   CheckCircle,
   Settings,
   Scale,
-  ReceiptText // Import ReceiptText icon for credit card reconciliation
+  ReceiptText
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -21,14 +21,14 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Lançamentos', href: '/lancamentos', icon: FileText },
-  { name: 'Patrimônio', href: '/patrimonio', icon: Wallet },
+  { name: 'Contas', href: '/contas', icon: Wallet }, // Updated name and icon
   { name: 'Cartões', href: '/cartoes', icon: CreditCard },
   { name: 'Investimentos', href: '/investimentos', icon: TrendingUp },
   { name: 'Importação', href: '/importacao-extratos', icon: Upload },
   { name: 'Fechamento', href: '/fechamento', icon: CheckCircle },
   { name: 'Relatórios', href: '/relatorios', icon: BarChart3 },
   { name: 'Conferência Bancária', href: '/conferencia-bancaria', icon: Scale },
-  { name: 'Conferência de Cartão', href: '/conferencia-cartao', icon: ReceiptText }, // New navigation item
+  { name: 'Conferência de Cartão', href: '/conferencia-cartao', icon: ReceiptText },
 ];
 
 const Sidebar = () => {

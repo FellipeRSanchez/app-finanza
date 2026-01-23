@@ -23,13 +23,13 @@ import {
   Home,
   Car,
   Factory,
-  PiggyBank, // Changed from Pig to PiggyBank
+  PiggyBank,
   DollarSign,
   Banknote,
   Scale,
   CalendarDays,
   CalendarOff,
-  Trash2 // Added Trash2 icon
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
+const Contas = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -81,11 +81,11 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
 
   useEffect(() => {
     if (user) {
-      fetchPatrimonioData();
+      fetchContasData();
     }
   }, [user]);
 
-  const fetchPatrimonioData = async () => {
+  const fetchContasData = async () => {
     setLoading(true);
     try {
       const { data: userData } = await supabase
@@ -107,25 +107,28 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
         .eq('con_grupo', userData.usu_grupo);
       if (accountsError) throw accountsError;
 
-      // Fetch Lancamentos for account balances
-      const { data: lancamentos, error: lancamentosError } = await supabase
-        .from('lancamentos')
-        .select('lan_valor, lan_conta')
-        .eq('lan_grupo', userData.usu_grupo)
-        .eq('lan_conciliado', true); // Considerar apenas lançamentos conciliados para o saldo real
-      if (lancamentosError) throw lancamentosError;
+      // Fetch latest accumulated balances from vw_saldo_diario_conta
+      const { data: dailyBalances, error: dbError } = await supabase
+        .from('vw_saldo_diario_conta')
+        .select('lan_conta, saldo_acumulado')
+        .eq('group_id', userData.usu_grupo)
+        .order('data', { ascending: false }); // Order by date descending to get the latest for each account
+
+      if (dbError) throw dbError;
+
+      const latestBalancesMap = new Map<string, number>();
+      // Process dailyBalances to get the latest for each account
+      dailyBalances?.forEach(balance => {
+        if (!latestBalancesMap.has(balance.lan_conta)) { // Only add the first (latest) entry for each account
+          latestBalancesMap.set(balance.lan_conta, Number(balance.saldo_acumulado));
+        }
+      });
 
       const processedContas = (accounts || []).map(acc => {
-        const transacoesConta = lancamentos?.filter(t => t.lan_conta === acc.con_id) || [];
-        const somaTransacoes = transacoesConta.reduce((sum, t) => sum + Number(t.lan_valor), 0);
-        
-        let saldoAtual = 0;
-        if (acc.con_tipo === 'cartao') {
-          // Para cartões, o saldo atual é a soma dos lançamentos (dívida)
-          saldoAtual = somaTransacoes; // Será negativo
-        } else {
-          // Para outras contas, é o limite/saldo inicial + soma dos lançamentos
-          saldoAtual = Number(acc.con_limite || 0) + somaTransacoes;
+        let saldoAtual = Number(acc.con_limite || 0); // Start with initial limit/balance
+
+        if (latestBalancesMap.has(acc.con_id)) {
+          saldoAtual = latestBalancesMap.get(acc.con_id)!;
         }
         
         return { ...acc, saldoAtual: saldoAtual };
@@ -165,8 +168,8 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
       setEmprestimos(loans || []);
 
     } catch (error) {
-      console.error("Erro ao buscar dados do patrimônio:", error);
-      showError("Erro ao carregar dados do patrimônio.");
+      console.error("Erro ao buscar dados das contas:", error);
+      showError("Erro ao carregar dados das contas.");
     } finally {
       setLoading(false);
     }
@@ -193,7 +196,7 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
 
   const getPecuariaIcon = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'bovino': return PiggyBank; // Using PiggyBank
+      case 'bovino': return PiggyBank;
       case 'suino': return PiggyBank;
       case 'ovino': return PiggyBank;
       default: return PiggyBank;
@@ -245,7 +248,7 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
 
       if (error) throw error;
       showSuccess(`${deleteTarget.name} excluído com sucesso!`);
-      fetchPatrimonioData(); // Refresh data
+      fetchContasData(); // Refresh data
     } catch (error) {
       console.error("Erro ao excluir item:", error);
       showError(`Erro ao excluir ${deleteTarget.name}.`);
@@ -261,7 +264,7 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
         
         {/* Header com botão de ocultar valores */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-black text-[#141118] dark:text-white tracking-tight">Patrimônio</h1>
+          <h1 className="text-3xl font-black text-[#141118] dark:text-white tracking-tight">Minhas Contas</h1>
           {/* The Eye/EyeOff button is now in Topbar, so it's removed from here */}
         </div>
 
@@ -370,7 +373,7 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-black text-[#141118] dark:text-white">Investimentos</h3>
-            <AddInvestmentForm onInvestmentAdded={fetchPatrimonioData} />
+            <AddInvestmentForm onInvestmentAdded={fetchContasData} hideValues={hideValues} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {loading ? (
@@ -749,7 +752,7 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
       <ContaModal 
         open={contaModalOpen}
         onOpenChange={setContaModalOpen}
-        onSuccess={fetchPatrimonioData}
+        onSuccess={fetchContasData}
         conta={editingConta}
         grupoId={groupId}
         hideValues={hideValues}
@@ -757,21 +760,21 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
       <AtivoPatrimonialModal
         open={ativoPatrimonialModalOpen}
         onOpenChange={setAtivoPatrimonialModalOpen}
-        onSuccess={fetchPatrimonioData}
+        onSuccess={fetchContasData}
         ativo={editingAtivoPatrimonial}
         hideValues={hideValues}
       />
       <PecuariaModal
         open={pecuariaModalOpen}
         onOpenChange={setPecuariaModalOpen}
-        onSuccess={fetchPatrimonioData}
+        onSuccess={fetchContasData}
         pecuariaItem={editingPecuaria}
         hideValues={hideValues}
       />
       <EmprestimoModal
         open={emprestimoModalOpen}
         onOpenChange={setEmprestimoModalOpen}
-        onSuccess={fetchPatrimonioData}
+        onSuccess={fetchContasData}
         emprestimo={editingEmprestimo}
         hideValues={hideValues}
       />
@@ -795,4 +798,4 @@ const Patrimonio = ({ hideValues }: { hideValues: boolean }) => {
   );
 };
 
-export default Patrimonio;
+export default Contas;

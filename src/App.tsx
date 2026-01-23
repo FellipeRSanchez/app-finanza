@@ -8,7 +8,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Lancamentos from "./pages/Lancamentos";
-import Patrimonio from "./pages/Patrimonio";
+import Contas from "./pages/Contas"; // Updated import
 import Configuracoes from "./pages/Configuracoes";
 import Cartoes from "./pages/Cartoes";
 import Investimentos from "./pages/Investimentos";
@@ -16,7 +16,7 @@ import ImportacaoExtratos from "./pages/ImportacaoExtratos";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import ConferenciaBancaria from "./pages/ConferenciaBancaria";
-import ConferenciaCartao from "./pages/ConferenciaCartao"; // Import the new page
+import ConferenciaCartao from "./pages/ConferenciaCartao";
 import NotFound from "./pages/NotFound";
 import MainLayout from "./components/layout/MainLayout";
 import { useState } from "react";
@@ -30,8 +30,8 @@ const getTitleForPath = (pathname: string) => {
       return 'Visão Geral';
     case '/lancamentos':
       return 'Lançamentos';
-    case '/patrimonio':
-      return 'Patrimônio';
+    case '/contas': // Updated title for the new route
+      return 'Minhas Contas';
     case '/cartoes':
       return 'Meus Cartões';
     case '/investimentos':
@@ -44,7 +44,7 @@ const getTitleForPath = (pathname: string) => {
       return 'Relatórios';
     case '/conferencia-bancaria':
       return 'Conferência Bancária';
-    case '/conferencia-cartao': // New route title
+    case '/conferencia-cartao':
       return 'Conferência de Cartão';
     case '/configuracoes':
       return 'Configurações';
@@ -73,14 +73,14 @@ const AppContent = () => {
               {/* Essas rotas só serão renderizadas se a verificação de autenticação do MainLayout passar */}
               <Route path="/dashboard" element={<Dashboard hideValues={hideValues} />} />
               <Route path="/lancamentos" element={<Lancamentos hideValues={hideValues} />} />
-              <Route path="/patrimonio" element={<Patrimonio hideValues={hideValues} />} />
+              <Route path="/contas" element={<Contas hideValues={hideValues} />} /> {/* Updated route */}
               <Route path="/cartoes" element={<Cartoes hideValues={hideValues} />} />
               <Route path="/investimentos" element={<Investimentos hideValues={hideValues} />} />
               <Route path="/importacao-extratos" element={<ImportacaoExtratos hideValues={hideValues} />} />
               <Route path="/fechamento" element={<Fechamento hideValues={hideValues} />} />
               <Route path="/relatorios" element={<Relatorios hideValues={hideValues} />} />
               <Route path="/conferencia-bancaria" element={<ConferenciaBancaria hideValues={hideValues} />} />
-              <Route path="/conferencia-cartao" element={<ConferenciaCartao hideValues={hideValues} />} /> {/* New route */}
+              <Route path="/conferencia-cartao" element={<ConferenciaCartao hideValues={hideValues} />} />
               <Route path="/configuracoes" element={<Configuracoes hideValues={hideValues} />} />
               <Route path="*" element={<NotFound />} /> {/* Este NotFound é para rotas autenticadas */}
             </Routes>

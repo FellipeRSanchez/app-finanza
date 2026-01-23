@@ -59,11 +59,38 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
 
       const grupoId = userData.usu_grupo;
 
-      // 1. Caixa Atual (Total absoluto das contas)
-      const { data: accountsData } = await supabase
+      // 1. Fetch Contas
+      const { data: accounts, error: accountsError } = await supabase
         .from('contas')
         .select('*')
-        .eq('con_grupo', grupoId);
+        .eq('con_grupo', userData.usu_grupo);
+      if (accountsError) throw accountsError;
+
+      // Fetch latest accumulated balances from vw_saldo_diario_conta
+      const { data: dailyBalances, error: dbError } = await supabase
+        .from('vw_saldo_diario_conta')
+        .select('lan_conta, saldo_acumulado')
+        .eq('group_id', userData.usu_grupo)
+        .order('data', { ascending: false });
+
+      if (dbError) throw dbError;
+
+      const latestBalancesMap = new Map<string, number>();
+      dailyBalances?.forEach(balance => {
+        if (!latestBalancesMap.has(balance.lan_conta)) {
+          latestBalancesMap.set(balance.lan_conta, Number(balance.saldo_acumulado));
+        }
+      });
+
+      const processedContas = (accounts || []).map(acc => {
+        let saldoAtual = Number(acc.con_limite || 0);
+
+        if (latestBalancesMap.has(acc.con_id)) {
+          saldoAtual = latestBalancesMap.get(acc.con_id)!;
+        }
+        return { ...acc, saldoAtual: saldoAtual };
+      });
+      setContas(processedContas);
 
       // 2. Fluxo do Período (Mês atual)
       const start = format(startOfMonth(new Date()), 'yyyy-MM-dd');
@@ -85,9 +112,8 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
         else expense += val;
       });
 
-      setContas(accountsData || []);
       setMetrics({
-        caixaAtual: accountsData?.filter(acc => acc.con_tipo !== 'cartao').reduce((acc, curr) => acc + (Number(curr.con_limite) || 0), 0) || 0, // Only non-credit card accounts
+        caixaAtual: processedContas?.filter(acc => acc.con_tipo !== 'cartao').reduce((acc, curr) => acc + (Number(curr.saldoAtual) || 0), 0) || 0, // Only non-credit card accounts
         receitasMes: income,
         despesasMes: expense,
         resultadoMes: income - expense
@@ -209,7 +235,7 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
         </Button>
         <Button 
           variant="outline" 
-          onClick={() => navigate('/patrimonio')} // Updated to navigate to Patrimonio
+          onClick={() => navigate('/contas')} // Updated to navigate to Contas
           className="rounded-xl h-12 px-6 font-bold border-border-light dark:border-[#2d2438] bg-white dark:bg-[#1e1629] text-[#756189] hover:text-primary transition-all"
         >
           <PlusSquare className="w-5 h-5 mr-2" /> Adicionar Ativo
@@ -248,7 +274,7 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
             <h3 className="text-xl font-black text-[#141118] dark:text-white">Minhas Contas</h3>
             <PlusSquare 
               className="w-5 h-5 text-primary cursor-pointer hover:scale-110 transition-transform" 
-              onClick={() => navigate('/patrimonio')}
+              onClick={() => navigate('/contas')}
             />
           </div>
           
@@ -269,7 +295,7 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
               </div>
             ) : (
               contas.slice(0, 5).map((acc, i) => (
-                <div key={i} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate('/patrimonio')}>
+                <div key={i} className="flex items-center justify-between group cursor-pointer" onClick={() => navigate('/contas')}>
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-background-light dark:bg-[#2d2438] text-text-secondary-light shadow-sm transition-transform group-hover:scale-110">
                       {getAccountIcon(acc.con_tipo || '')}
@@ -282,9 +308,9 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
                   <div className="text-right">
                     <p className={cn(
                       "text-sm font-black tracking-tight", 
-                      (Number(acc.con_limite) || 0) < 0 ? "text-rose-600" : "text-emerald-600"
+                      (Number(acc.saldoAtual) || 0) < 0 ? "text-rose-600" : "text-emerald-600"
                     )}>
-                      {formatCurrency(Number(acc.con_limite) || 0)}
+                      {formatCurrency(Number(acc.saldoAtual) || 0)}
                     </p>
                   </div>
                 </div>
@@ -293,7 +319,7 @@ const Dashboard = ({ hideValues }: { hideValues: boolean }) => {
             
             <Button 
               variant="ghost" 
-              onClick={() => navigate('/patrimonio')}
+              onClick={() => navigate('/contas')}
               className="mt-auto w-full py-6 rounded-2xl border border-dashed border-border-light dark:border-[#2d2438] text-[10px] font-black uppercase tracking-[0.2em] text-[#756189] hover:bg-background-light dark:hover:bg-[#2d2438] transition-all flex items-center justify-center gap-2 group"
             >
               Gerenciar ativos <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
