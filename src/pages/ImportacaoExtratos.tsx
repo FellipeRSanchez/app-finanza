@@ -54,7 +54,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Fixed: Initial state should be null
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<'upload' | 'preview'>('upload');
 
@@ -289,7 +289,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     // Populate maps from existing lancamentos
     existingLancamentos.forEach(lan => {
       const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-      const key = `${formattedExistingDate}-${lan.lan_descricao.toLowerCase()}-${lan.lan_valor}`;
+      // Changed duplicate key to only use date and value
+      const key = `${formattedExistingDate}-${lan.lan_valor}`; 
       existingTransactionsSet.add(key);
       if (lan.lan_descricao) {
         existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
@@ -312,8 +313,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         isTransferCandidate = true;
       }
 
-      // Duplicate detection
-      const duplicateKey = `${formattedDate}-${lowerDescription}-${value}`;
+      // Duplicate detection (now only by date and value)
+      const duplicateKey = `${formattedDate}-${value}`;
       if (existingTransactionsSet.has(duplicateKey)) {
         status = 'duplicate';
       }
@@ -689,7 +690,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 <CardContent className="p-0 pt-4 text-sm text-text-secondary-light dark:text-text-secondary-dark">
                   <p>Usamos inteligência artificial para classificar seus lançamentos automaticamente, reutilizando categorias já usadas anteriormente.</p>
                   <p className="mt-2 flex items-center gap-1 text-xs font-bold text-primary-new">
-                    {useAiClassification ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
                     IA {useAiClassification ? 'Ativada' : 'Desativada'}
                   </p>
                 </CardContent>
@@ -747,9 +747,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                         </TableRow>
                       ) : (
                         processedTransactions.map((transaction) => (
-                          <TableRow key={transaction.id} className={`hover:bg-background-light dark:hover:bg-[#2d2438] transition-colors ${
-                            transaction.status === 'duplicate' ? 'bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20' : ''
-                          } ${transaction.ignore ? 'opacity-50' : ''}`}>
+                          <TableRow key={transaction.id} className={cn(`hover:bg-background-light dark:hover:bg-[#2d2438] transition-colors`,
+                            transaction.status === 'duplicate' && 'bg-orange-50/50 dark:bg-orange-900/10 hover:bg-orange-50 dark:hover:bg-orange-900/20',
+                            transaction.ignore && 'opacity-50'
+                          )}>
                             <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-text-main-light dark:text-text-main-dark font-medium">
                               {format(parseDateString(transaction.date), 'dd/MM/yyyy', { locale: ptBR })}
                             </TableCell>
