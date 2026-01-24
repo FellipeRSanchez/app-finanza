@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx'; // For XLSX parsing
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch'; // Assuming shadcn switch
+import { cn } from '@/lib/utils'; // Adicionada a importação para 'cn'
 
 // Interfaces for data
 interface Account {
@@ -43,7 +44,7 @@ interface ProcessedTransaction extends ParsedTransaction {
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
   status: 'new' | 'duplicate' | 'ignored';
-  ignore: boolean;
+  ignore: boolean; // User can toggle this
   isTransferCandidate: boolean; // New field
   selectedLinkedAccountId: string | null; // New field
   lan_id_duplicate?: string; // If duplicate, ID of existing lancamento
@@ -69,9 +70,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
 
   // Summary for confirmation
-  const totalValid = processedTransactions.filter(t => t.status === 'new' && !t.ignore).length;
-  const totalIgnored = processedTransactions.filter(t => t.ignore).length;
-  const totalDuplicates = processedTransactions.filter(t => t.status === 'duplicate').length;
+  const totalToImport = processedTransactions.filter(tx => !tx.ignore).length;
+  const totalDuplicates = processedTransactions.filter(tx => tx.status === 'duplicate').length;
+  const totalIgnored = processedTransactions.filter(tx => tx.ignore).length;
+
 
   // Helper to format currency
   const formatCurrency = useCallback((value: number) => {
@@ -255,6 +257,29 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     });
   }, []);
 
+  // Helper to parse various date formats (YYYYMMDD, YYYY-MM-DD, DD/MM/YYYY)
+  const parseDateString = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    // Try YYYY-MM-DD
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return parseISO(dateStr);
+    }
+    // Try YYYYMMDD (OFX format)
+    if (dateStr.match(/^\d{8}$/)) {
+      const year = parseInt(dateStr.substring(0, 4));
+      const month = parseInt(dateStr.substring(4, 6)) - 1; // Month is 0-indexed
+      const day = parseInt(dateStr.substring(6, 8));
+      return new Date(year, month, day);
+    }
+    // Try DD/MM/YYYY
+    if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      const [day, month, year] = dateStr.split('/').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    // Fallback to current date if parsing fails
+    return new Date();
+  };
+
   // Process transactions (duplicate detection, AI classification)
   const processTransactions = useCallback(async (parsed: ParsedTransaction[], accountId: string) => {
     const processed: ProcessedTransaction[] = [];
@@ -263,7 +288,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     // Populate maps from existing lancamentos
     existingLancamentos.forEach(lan => {
-      const key = `${lan.lan_data}-${lan.lan_descricao}-${lan.lan_valor}`;
+      const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
+      const key = `${formattedExistingDate}-${lan.lan_descricao.toLowerCase()}-${lan.lan_valor}`;
       existingTransactionsSet.add(key);
       if (lan.lan_descricao) {
         existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
@@ -286,12 +312,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         isTransferCandidate = true;
       }
 
-      // Duplicate detection (only for non-transfer candidates for now, transfers will be handled differently)
-      if (!isTransferCandidate) {
-        const duplicateKey = `${formattedDate}-${tx.description}-${value}`;
-        if (existingTransactionsSet.has(duplicateKey)) {
-          status = 'duplicate';
-        }
+      // Duplicate detection
+      const duplicateKey = `${formattedDate}-${lowerDescription}-${value}`;
+      if (existingTransactionsSet.has(duplicateKey)) {
+        status = 'duplicate';
       }
 
       // AI Classification (mocked)
@@ -326,29 +350,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     setProcessedTransactions(processed);
     setUploadStep('preview');
   }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId]);
-
-  // Helper to parse various date formats (YYYYMMDD, YYYY-MM-DD, DD/MM/YYYY)
-  const parseDateString = (dateStr: string): Date => {
-    if (!dateStr) return new Date();
-    // Try YYYY-MM-DD
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return parseISO(dateStr);
-    }
-    // Try YYYYMMDD (OFX format)
-    if (dateStr.match(/^\d{8}$/)) {
-      const year = parseInt(dateStr.substring(0, 4));
-      const month = parseInt(dateStr.substring(4, 6)) - 1; // Month is 0-indexed
-      const day = parseInt(dateStr.substring(6, 8));
-      return new Date(year, month, day);
-    }
-    // Try DD/MM/YYYY
-    if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-      const [day, month, year] = dateStr.split('/').map(Number);
-      return new Date(year, month - 1, day);
-    }
-    // Fallback to current date if parsing fails
-    return new Date();
-  };
 
   // Handle file drop
   const handleFileDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
@@ -423,7 +424,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     setIsImporting(true);
     const transactionsToProcess = processedTransactions
-      .filter(tx => tx.status === 'new' && !tx.ignore);
+      .filter(tx => !tx.ignore);
 
     if (transactionsToProcess.length === 0) {
       showError('Nenhum lançamento válido para importar.');
@@ -435,6 +436,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     const transactionsWithoutCategory = transactionsToProcess.filter(tx => !tx.suggestedCategoryId || tx.suggestedCategoryId === '');
     if (transactionsWithoutCategory.length > 0) {
       showError('Por favor, selecione uma categoria para todos os lançamentos válidos.');
+      setIsImporting(false);
+      return;
+    }
+
+    // New validation: Ensure linked account is selected for transfer candidates
+    const transfersWithoutLinkedAccount = transactionsToProcess.filter(tx =>
+      tx.suggestedCategoryId === systemCategories.transferenciaId && !tx.selectedLinkedAccountId
+    );
+    if (transfersWithoutLinkedAccount.length > 0) {
+      showError('Por favor, selecione a conta vinculada para todas as transferências.');
       setIsImporting(false);
       return;
     }
@@ -513,7 +524,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               lan_descricao: tx.description,
               lan_valor: tx.value,
               lan_categoria: catId,
-              lan_conta: selectedAccountId,
+              lan_conta: selectedAccountId, // Use current state here
               lan_grupo: grupoId,
               lan_conciliado: true,
               lan_importado: true,
@@ -596,8 +607,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <span className="text-text-main-light dark:text-text-main-dark text-sm font-bold mb-2 block">
                     Conta Bancária de Destino
                   </span>
-                  <Select value={selectedAccountId} onValueChange={setSelectedAccountId} disabled={loading}>
-                    <SelectTrigger className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
+                  <Select key={selectedAccountId} value={selectedAccountId} onValueChange={setSelectedAccountId} disabled={loading}>
+                    <SelectTrigger id="account-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-card-light dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
                     <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
@@ -779,7 +790,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                     disabled={transaction.ignore}
                                   >
                                     <SelectTrigger className="w-[200px] h-8 rounded-lg text-xs bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold">
-                                      <SelectValue placeholder="Selecionar Banco" />
+                                      <SelectValue placeholder="Selecionar Conta Vinculada" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
                                       {accounts.filter(acc => acc.con_id !== selectedAccountId).map(acc => (
@@ -800,9 +811,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                                   <Check className="w-3 h-3" /> Novo
                                 </span>
-                              ) : transaction.status === 'duplicate' ? (
+                              ) : transaction.status === 'duplicate' && !transaction.ignore ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                  <Info className="w-3 h-3" /> Duplicado (Importar)
+                                </span>
+                              ) : transaction.status === 'duplicate' && transaction.ignore ? (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200 dark:border-orange-800">
-                                  <Info className="w-3 h-3" /> Duplicado
+                                  <Info className="w-3 h-3" /> Duplicado (Ignorado)
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
@@ -817,9 +832,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                 onClick={() => setProcessedTransactions(prev => prev.map(tx =>
                                   tx.id === transaction.id ? { ...tx, ignore: !tx.ignore } : tx
                                 ))}
-                                className="h-8 w-8 text-text-secondary-light hover:bg-background-light"
+                                className={cn("h-8 w-8", transaction.ignore ? "text-red-500 hover:bg-red-100" : "text-green-500 hover:bg-green-100")}
                               >
-                                {transaction.ignore ? <Check className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                                {transaction.ignore ? <XCircle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -833,8 +848,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               {/* Summary for Confirmation */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="bg-background-light dark:bg-[#2d2438] p-4 rounded-xl border border-border-light dark:border-[#3a3045]">
-                  <p className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">Lançamentos Válidos</p>
-                  <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-2">{totalValid}</p>
+                  <p className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">A Importar</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-2">{totalToImport}</p>
                 </Card>
                 <Card className="bg-background-light dark:bg-[#2d2438] p-4 rounded-xl border border-border-light dark:border-[#3a3045]">
                   <p className="text-xs font-bold uppercase text-text-secondary-light dark:text-text-secondary-dark">Duplicados</p>
@@ -857,7 +872,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   </Button>
                   <Button
                     onClick={handleConfirmImport}
-                    disabled={isImporting || totalValid === 0}
+                    disabled={isImporting || totalToImport === 0}
                     className="w-full sm:w-auto px-6 py-3 rounded-xl bg-primary-new hover:bg-primary-new/90 text-white shadow-lg shadow-primary-new/30 text-sm font-bold transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
                   >
                     {isImporting ? (
@@ -867,7 +882,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                       </>
                     ) : (
                       <>
-                        Importar {totalValid} Lançamentos
+                        Importar {totalToImport} Lançamentos
                         <ArrowDown className="h-4 w-4 rotate-180" />
                       </>
                     )}
