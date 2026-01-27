@@ -16,6 +16,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch'; // Assuming shadcn switch
 import { cn } from '@/lib/utils'; // Adicionada a importação para 'cn'
+import { useNavigate } from 'react-router-dom'; // Importar useNavigate
 
 // Interfaces for data
 interface Account {
@@ -52,6 +53,7 @@ interface ProcessedTransaction extends ParsedTransaction {
 
 const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
+  const navigate = useNavigate(); // Inicializar useNavigate
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -707,6 +709,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       handleRemoveFile(); // Clear form after successful import
       setUploadStep('upload');
       clearPersistedState(); // Clear persisted state on successful import
+      navigate('/lancamentos', { state: { refresh: true } }); // Navegar e sinalizar refresh
     } catch (error) {
       console.error('Error importing transactions:', error);
       showError('Erro ao importar lançamentos.');
@@ -961,6 +964,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
                                 {transaction.suggestedCategoryId === systemCategories.transferenciaId && (
                                   <Select
+                                    key={`${transaction.id}-linked-account`} {/* Adicionando key aqui */}
                                     value={transaction.selectedLinkedAccountId || ''}
                                     onValueChange={(value) => {
                                       setProcessedTransactions(prev => prev.map(tx =>

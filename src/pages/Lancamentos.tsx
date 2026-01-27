@@ -13,11 +13,12 @@ import LancamentosHeader from '@/components/lancamentos/LancamentosHeader';
 import LancamentosFilters from '@/components/lancamentos/LancamentosFilters';
 import LancamentosFilterBar from '@/components/lancamentos/LancamentosFilterBar';
 import LancamentosTable from '@/components/lancamentos/LancamentosTable';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom'; // Importar useNavigate
 
 const Lancamentos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate(); // Inicializar useNavigate
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [lancamentos, setLancamentos] = useState<any[]>([]);
@@ -48,6 +49,16 @@ const Lancamentos = ({ hideValues }: { hideValues: boolean }) => {
   useEffect(() => {
     if (groupId) fetchLancamentos(groupId);
   }, [groupId, filterType, filterAccount, filterCategory, filterPeriod, customRange]);
+
+  // New useEffect to handle refresh signal from navigation
+  useEffect(() => {
+    if (location.state?.refresh && groupId) {
+      fetchLancamentos(groupId);
+      // Clear the state so it doesn't trigger refresh on subsequent visits
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, groupId, navigate, location.pathname]);
+
 
   // Handle URL parameters for initial filters
   useEffect(() => {
