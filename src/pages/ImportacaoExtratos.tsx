@@ -68,6 +68,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [useAiClassification, setUseAiClassification] = useState(true);
   const [systemCategories, setSystemCategories] = useState({ transferenciaId: null as string | null });
 
+  const [lastSelectedFileName, setLastSelectedFileName] = useState<string | null>(null);
+  const [lastSelectedFileSize, setLastSelectedFileSize] = useState<number | null>(null);
+
 
   // Summary for confirmation
   const totalToImport = processedTransactions.filter(tx => !tx.ignore).length;
@@ -80,6 +83,64 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
+
+  // --- Persistence Logic ---
+  const localStorageKeys = {
+    selectedAccountId: 'import_selected_account_id',
+    processedTransactions: 'import_processed_transactions',
+    uploadStep: 'import_upload_step',
+    useAiClassification: 'import_use_ai_classification',
+    lastSelectedFileName: 'import_last_selected_file_name',
+    lastSelectedFileSize: 'import_last_selected_file_size',
+  };
+
+  const clearPersistedState = useCallback(() => {
+    Object.values(localStorageKeys).forEach(key => localStorage.removeItem(key));
+    setLastSelectedFileName(null);
+    setLastSelectedFileSize(null);
+  }, [localStorageKeys]);
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const loadState = () => {
+      try {
+        const savedAccountId = localStorage.getItem(localStorageKeys.selectedAccountId);
+        const savedTransactions = localStorage.getItem(localStorageKeys.processedTransactions);
+        const savedStep = localStorage.getItem(localStorageKeys.uploadStep);
+        const savedAiClassification = localStorage.getItem(localStorageKeys.useAiClassification);
+        const savedFileName = localStorage.getItem(localStorageKeys.lastSelectedFileName);
+        const savedFileSize = localStorage.getItem(localStorageKeys.lastSelectedFileSize);
+
+        if (savedAccountId) setSelectedAccountId(savedAccountId);
+        if (savedTransactions) setProcessedTransactions(JSON.parse(savedTransactions));
+        if (savedStep) setUploadStep(savedStep as 'upload' | 'preview');
+        if (savedAiClassification) setUseAiClassification(savedAiClassification === 'true');
+        if (savedFileName) setLastSelectedFileName(savedFileName);
+        if (savedFileSize) setLastSelectedFileSize(Number(savedFileSize));
+
+        if (savedTransactions && !savedFileName) {
+          showError('O arquivo original não foi salvo. Por favor, selecione-o novamente para continuar.');
+        }
+      } catch (error) {
+        console.error('Failed to load state from localStorage:', error);
+        clearPersistedState(); // Clear corrupted state
+      }
+    };
+
+    loadState();
+  }, [clearPersistedState, localStorageKeys]);
+
+  // Save state to localStorage whenever relevant state changes
+  useEffect(() => {
+    if (selectedAccountId) localStorage.setItem(localStorageKeys.selectedAccountId, selectedAccountId);
+    if (processedTransactions.length > 0) localStorage.setItem(localStorageKeys.processedTransactions, JSON.stringify(processedTransactions));
+    localStorage.setItem(localStorageKeys.uploadStep, uploadStep);
+    localStorage.setItem(localStorageKeys.useAiClassification, String(useAiClassification));
+    if (lastSelectedFileName) localStorage.setItem(localStorageKeys.lastSelectedFileName, lastSelectedFileName);
+    if (lastSelectedFileSize) localStorage.setItem(localStorageKeys.lastSelectedFileSize, String(lastSelectedFileSize));
+  }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification, lastSelectedFileName, lastSelectedFileSize, localStorageKeys]);
+  // --- End Persistence Logic ---
+
 
   // Fetch initial data (accounts, categories, existing lancamentos)
   useEffect(() => {
@@ -122,8 +183,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           transferenciaId: transferenciaCat?.cat_id || null,
         });
 
-        if (accountsRes.data && accountsRes.data.length > 0) {
-          setSelectedAccountId(accountsRes.data[0].con_id); // Default to first account
+        // If no account is pre-selected from localStorage, default to first account
+        if (!localStorage.getItem(localStorageKeys.selectedAccountId) && accountsRes.data && accountsRes.data.length > 0) {
+          setSelectedAccountId(accountsRes.data[0].con_id);
         }
 
       } catch (error) {
@@ -137,7 +199,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (user) {
       fetchInitialData();
     }
-  }, [user]);
+  }, [user, localStorageKeys.selectedAccountId]);
 
   // Auto-detect account from file name
   const detectAccountFromFile = useCallback((fileName: string, availableAccounts: Account[]): string | undefined => {
@@ -261,6 +323,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const parseDateString = (dateStr: string): Date => {
     if (!dateStr) return new Date();
     // Try YYYY-MM-DD
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return parseISO(dateStr);
+    }
     // Try YYYYMMDD (OFX format)
     if (dateStr.match(/^\d{8}$/)) {
       const year = parseInt(dateStr.substring(0, 4));
@@ -274,7 +339,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       return new Date(year, month - 1, day);
     }
     // Fallback to current date if parsing fails
-    return parseISO(dateStr); // Use parseISO as a general fallback
+    return new Date();
   };
 
   // Helper to extract person's name from description
@@ -457,6 +522,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       setSelectedFile(file);
+      setLastSelectedFileName(file.name);
+      setLastSelectedFileSize(file.size);
+
       const detectedAccId = detectAccountFromFile(file.name, accounts);
       if (detectedAccId) {
         setSelectedAccountId(detectedAccId);
@@ -471,6 +539,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
+      setLastSelectedFileName(file.name);
+      setLastSelectedFileSize(file.size);
+
       const detectedAccId = detectAccountFromFile(file.name, accounts);
       if (detectedAccId) {
         setSelectedAccountId(detectedAccId);
@@ -485,7 +556,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     setProcessedTransactions([]);
     setUploadStep('upload');
     setFileError(null);
-  }, []);
+    clearPersistedState(); // Clear persisted state on explicit removal
+  }, [clearPersistedState]);
 
   // Handle processing file after account selection
   const handleProcessFile = useCallback(async () => {
@@ -508,10 +580,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       setFileError(error.message || 'Erro ao processar o arquivo. Verifique o formato.');
       setProcessedTransactions([]);
       setUploadStep('upload');
+      clearPersistedState(); // Clear state if processing fails
     } finally {
       setLoading(false);
     }
-  }, [selectedFile, selectedAccountId, parseFile, processTransactions]);
+  }, [selectedFile, selectedAccountId, parseFile, processTransactions, clearPersistedState]);
 
   // Handle final import confirmation
   const handleConfirmImport = async () => {
@@ -633,6 +706,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       showSuccess(`${transactionsToProcess.length} lançamentos importados com sucesso!`);
       handleRemoveFile(); // Clear form after successful import
       setUploadStep('upload');
+      clearPersistedState(); // Clear persisted state on successful import
     } catch (error) {
       console.error('Error importing transactions:', error);
       showError('Erro ao importar lançamentos.');
@@ -755,6 +829,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 {selectedFile && (
                   <div className="mt-2 flex items-center justify-between text-sm text-text-main-light dark:text-text-main-dark">
                     <span>Arquivo selecionado: <span className="font-bold">{selectedFile.name}</span> ({Math.round(selectedFile.size / 1024)} KB)</span>
+                    <Button variant="ghost" size="icon" onClick={handleRemoveFile} className="text-red-500 hover:bg-red-100">
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+                {lastSelectedFileName && !selectedFile && (
+                  <div className="mt-2 flex items-center justify-between text-sm text-text-main-light dark:text-text-main-dark">
+                    <span>Último arquivo: <span className="font-bold">{lastSelectedFileName}</span> ({lastSelectedFileSize ? `${Math.round(lastSelectedFileSize / 1024)} KB` : 'Tamanho desconhecido'})</span>
                     <Button variant="ghost" size="icon" onClick={handleRemoveFile} className="text-red-500 hover:bg-red-100">
                       <XCircle className="w-4 h-4" />
                     </Button>
