@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // Importar useLocation
 
 interface AuthContextType {
   session: Session | null;
@@ -19,6 +19,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation(); // Usar useLocation aqui
 
   useEffect(() => {
     // Get initial session
@@ -36,7 +37,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
 
         if (event === 'SIGNED_IN') {
-          navigate('/dashboard');
+          // Redirecionar para o dashboard APENAS se o usuário estiver na página de login ou na raiz
+          if (location.pathname === '/login' || location.pathname === '/') {
+            navigate('/dashboard');
+          }
         } else if (event === 'SIGNED_OUT') {
           navigate('/login');
         }
@@ -44,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, location.pathname]); // Adicionar location.pathname às dependências
 
   const signOut = async () => {
     await supabase.auth.signOut();
