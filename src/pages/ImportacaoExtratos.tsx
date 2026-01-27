@@ -261,9 +261,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const parseDateString = (dateStr: string): Date => {
     if (!dateStr) return new Date();
     // Try YYYY-MM-DD
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return parseISO(dateStr);
-    }
     // Try YYYYMMDD (OFX format)
     if (dateStr.match(/^\d{8}$/)) {
       const year = parseInt(dateStr.substring(0, 4));
@@ -277,7 +274,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       return new Date(year, month - 1, day);
     }
     // Fallback to current date if parsing fails
-    return new Date();
+    return parseISO(dateStr); // Use parseISO as a general fallback
   };
 
   // Helper to extract person's name from description
@@ -286,7 +283,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     // Regex to capture names after common transfer indicators
     // Example: "PIX Recebido - João Silva", "TED para Maria", "Transferência de Empresa X"
     const patterns = [
-      /pix (recebido|enviado) - (.*?)(?:\s|$)/,
+      /pix (recebido|enviado) para (.*?)(?:\s|$)/, // Added 'para'
+      /pix (recebido|enviado) de (.*?)(?:\s|$)/, // Added 'de'
       /ted (para|de) (.*?)(?:\s|$)/,
       /transferência (para|de) (.*?)(?:\s|$)/,
       /transferencia (para|de) (.*?)(?:\s|$)/,
@@ -302,13 +300,49 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     return null;
   };
 
+  // Function to call the Edge Function for classification
+  const classifyTransactionWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
+    try {
+      const type = value >= 0 ? 'receita' : 'despesa';
+      const { data: sessionData } = await supabase.auth.getSession(); // Get session data
+      const accessToken = sessionData.session?.access_token;
+
+      if (!accessToken) {
+        console.error("No access token available for AI classification.");
+        return null;
+      }
+
+      const response = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`, // Use user's access token
+        },
+        body: JSON.stringify({ description, categories: availableCategories, type }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("AI Classification Edge Function error:", errorData);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.suggestedCategoryId;
+    } catch (error) {
+      console.error("Error calling AI Classification Edge Function:", error);
+      return null;
+    }
+  }, []);
+
   // Process transactions (duplicate detection, AI classification)
   const processTransactions = useCallback(async (parsed: ParsedTransaction[], accountId: string) => {
     const processed: ProcessedTransaction[] = [];
     const existingDescriptionsMap = new Map<string, string>(); // description -> category_id
     const existingTransactionsSet = new Set<string>(); // For duplicate detection (date + value)
-    // Modified personCategoryMap to store the latest non-system category, or system if only system categories exist
-    const personCategoryMap = new Map<string, { categoryId: string, date: Date, isSystemTransfer: boolean }>();
+    
+    // personCategoryMap to store the latest NON-SYSTEM category for a person
+    const personCategoryMap = new Map<string, { categoryId: string, date: Date }>();
 
     // Populate maps from existing lancamentos
     existingLancamentos.forEach(lan => {
@@ -322,32 +356,18 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
       }
 
-      // Populate personCategoryMap for transfer classification
+      // Populate personCategoryMap for transfer classification, prioritizing non-system categories
       const personName = extractPersonName(lan.lan_descricao || '');
       if (personName) {
         const lanDate = parseISO(lan.lan_data);
-        const currentEntry = personCategoryMap.get(personName);
-        
         const lanCategory = categories.find(c => c.cat_id === lan.lan_categoria);
-        const isSystemTransferCategory = lanCategory?.cat_id === systemCategories.transferenciaId;
-
-        if (!currentEntry) {
-            // If no entry exists, just add it
-            personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
-        } else {
-            // If an entry exists, compare based on date and system status
-            if (lanDate > currentEntry.date) {
-                // If newer, update
-                personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
-            } else if (lanDate.getTime() === currentEntry.date.getTime()) {
-                // If same date, but new category is NOT system transfer and current IS system transfer, prefer non-system
-                if (!isSystemTransferCategory && currentEntry.isSystemTransfer) {
-                    personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
-                }
-            } else if (isSystemTransferCategory && !currentEntry.isSystemTransfer) {
-                // If current entry is non-system, and new is system, keep non-system (unless new is much newer)
-                // This case is handled by lanDate > currentEntry.date, so no specific action needed here
-            }
+        
+        // Only consider non-system categories for person-specific mapping
+        if (lanCategory && lanCategory.cat_tipo !== 'sistema') {
+          const currentEntry = personCategoryMap.get(personName);
+          if (!currentEntry || lanDate > currentEntry.date) { // Keep the latest non-system category for a person
+            personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
+          }
         }
       }
     });
@@ -380,13 +400,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const personName = extractPersonName(tx.description);
           if (personName) {
             const matchedPersonCategory = personCategoryMap.get(personName);
-            if (matchedPersonCategory && !matchedPersonCategory.isSystemTransfer) { // Prioritize non-system category
-                suggestedCategoryId = matchedPersonCategory.categoryId;
-                suggestedCategoryName = categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null;
+            if (matchedPersonCategory) {
+              // If a non-system category is found for the person, use it
+              suggestedCategoryId = matchedPersonCategory.categoryId;
+              suggestedCategoryName = categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null;
             } else {
-                // If no non-system category found for person, or only system transfer category found, default to system transfer
-                suggestedCategoryId = systemCategories.transferenciaId;
-                suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+              // If no specific non-system category found for person, default to system transfer category
+              suggestedCategoryId = systemCategories.transferenciaId;
+              suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
             }
           } else {
             // If it's a transfer candidate but no person name extracted, default to system transfer category
@@ -394,11 +415,18 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
           }
         } else {
-          // Existing AI Classification for non-transfer candidates
-          const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
-          if (matchedCategoryId) {
-            suggestedCategoryId = matchedCategoryId;
-            suggestedCategoryName = categories.find(c => c.cat_id === matchedCategoryId)?.cat_nome || null;
+          // For non-transfer candidates, use the OpenAI Edge Function
+          const aiSuggestedId = await classifyTransactionWithAI(tx.description, tx.value, categories);
+          if (aiSuggestedId) {
+            suggestedCategoryId = aiSuggestedId;
+            suggestedCategoryName = categories.find(c => c.cat_id === aiSuggestedId)?.cat_nome || null;
+          } else {
+            // Fallback to description matching if AI fails
+            const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
+            if (matchedCategoryId) {
+              suggestedCategoryId = matchedCategoryId;
+              suggestedCategoryName = categories.find(c => c.cat_id === matchedCategoryId)?.cat_nome || null;
+            }
           }
         }
       }
@@ -419,7 +447,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId]);
+  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyTransactionWithAI]);
 
   // Handle file drop
   const handleFileDrop = useCallback((e: React.DragEvent<HTMLLabelElement>) => {
