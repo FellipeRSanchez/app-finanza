@@ -307,7 +307,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     const processed: ProcessedTransaction[] = [];
     const existingDescriptionsMap = new Map<string, string>(); // description -> category_id
     const existingTransactionsSet = new Set<string>(); // For duplicate detection (date + value)
-    const personCategoryMap = new Map<string, { categoryId: string, date: Date }>(); // personName -> {categoryId, date}
+    // Modified personCategoryMap to store the latest non-system category, or system if only system categories exist
+    const personCategoryMap = new Map<string, { categoryId: string, date: Date, isSystemTransfer: boolean }>();
 
     // Populate maps from existing lancamentos
     existingLancamentos.forEach(lan => {
@@ -325,9 +326,28 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const personName = extractPersonName(lan.lan_descricao || '');
       if (personName) {
         const lanDate = parseISO(lan.lan_data);
-        const existingEntry = personCategoryMap.get(personName);
-        if (!existingEntry || lanDate > existingEntry.date) { // Keep the latest category for a person
-          personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
+        const currentEntry = personCategoryMap.get(personName);
+        
+        const lanCategory = categories.find(c => c.cat_id === lan.lan_categoria);
+        const isSystemTransferCategory = lanCategory?.cat_id === systemCategories.transferenciaId;
+
+        if (!currentEntry) {
+            // If no entry exists, just add it
+            personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
+        } else {
+            // If an entry exists, compare based on date and system status
+            if (lanDate > currentEntry.date) {
+                // If newer, update
+                personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
+            } else if (lanDate.getTime() === currentEntry.date.getTime()) {
+                // If same date, but new category is NOT system transfer and current IS system transfer, prefer non-system
+                if (!isSystemTransferCategory && currentEntry.isSystemTransfer) {
+                    personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate, isSystemTransfer: isSystemTransferCategory });
+                }
+            } else if (isSystemTransferCategory && !currentEntry.isSystemTransfer) {
+                // If current entry is non-system, and new is system, keep non-system (unless new is much newer)
+                // This case is handled by lanDate > currentEntry.date, so no specific action needed here
+            }
         }
       }
     });
@@ -360,13 +380,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const personName = extractPersonName(tx.description);
           if (personName) {
             const matchedPersonCategory = personCategoryMap.get(personName);
-            if (matchedPersonCategory) {
-              suggestedCategoryId = matchedPersonCategory.categoryId;
-              suggestedCategoryName = categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null;
+            if (matchedPersonCategory && !matchedPersonCategory.isSystemTransfer) { // Prioritize non-system category
+                suggestedCategoryId = matchedPersonCategory.categoryId;
+                suggestedCategoryName = categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null;
             } else {
-              // If no specific person category, default to system transfer category
-              suggestedCategoryId = systemCategories.transferenciaId;
-              suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+                // If no non-system category found for person, or only system transfer category found, default to system transfer
+                suggestedCategoryId = systemCategories.transferenciaId;
+                suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
             }
           } else {
             // If it's a transfer candidate but no person name extracted, default to system transfer category
