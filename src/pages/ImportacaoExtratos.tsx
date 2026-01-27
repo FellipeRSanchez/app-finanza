@@ -392,6 +392,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     balance: processedTransactions.filter(tx => !tx.ignore).reduce((s, tx) => s + tx.value, 0)
   }), [processedTransactions]);
 
+  const selectContentStyles = "bg-white dark:bg-[#1e1629] border border-border-light dark:border-[#3a3045] shadow-lg rounded-xl z-[100]";
+
   if (loading && uploadStep === 'upload') {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
@@ -428,7 +430,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <SelectTrigger className="w-full rounded-xl border-border-light bg-card-light h-12 text-sm">
                       <SelectValue placeholder="Selecione uma conta..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={selectContentStyles}>
                       {accounts.map(acc => <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -490,12 +492,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                           <div className="flex flex-col gap-1">
                             <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
                               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                              <SelectContent>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                              <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
                             </Select>
                             {tx.suggestedCategoryId === systemCategories.transferenciaId && (
                               <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
                                 <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
-                                <SelectContent>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
+                                <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
                               </Select>
                             )}
                           </div>
