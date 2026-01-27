@@ -18,7 +18,6 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
-// Interfaces for data
 interface Account {
   con_id: string;
   con_nome: string;
@@ -75,16 +74,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [useAiClassification, setUseAiClassification] = useState(true);
   const [systemCategories, setSystemCategories] = useState({ transferenciaId: null as string | null });
 
-  // Helper to format currency
   const formatCurrency = useCallback((value: number) => {
     if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
 
-  // Normalize description for comparison
-  const normalizeDesc = (desc: string) => desc.toLowerCase().replace(/\s+/g, ' ').trim();
-
-  // Load state from localStorage on mount
   useEffect(() => {
     try {
       const savedAccountId = localStorage.getItem(LOCAL_STORAGE_KEYS.selectedAccountId);
@@ -101,7 +95,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
   }, []);
 
-  // Save state
   useEffect(() => {
     if (selectedAccountId) localStorage.setItem(LOCAL_STORAGE_KEYS.selectedAccountId, selectedAccountId);
     if (processedTransactions.length > 0) localStorage.setItem(LOCAL_STORAGE_KEYS.processedTransactions, JSON.stringify(processedTransactions));
@@ -109,7 +102,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     localStorage.setItem(LOCAL_STORAGE_KEYS.useAiClassification, String(useAiClassification));
   }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification]);
 
-  // Fetch initial data
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -121,7 +113,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
           supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
-          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_conta').eq('lan_grupo', userData.usu_grupo),
+          supabase.from('lancamentos').select('lan_data, lan_valor, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
 
         setAccounts(accountsRes.data || []);
@@ -163,69 +155,43 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     return new Date();
   };
 
-  const classifyWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
-    try {
-      const type = value >= 0 ? 'receita' : 'despesa';
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      if (!token) return null;
-
-      const res = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ description, categories: availableCategories, type }),
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.suggestedCategoryId;
-    } catch { return null; }
-  }, []);
-
   const processTransactions = useCallback(async (parsed: ParsedTransaction[]) => {
     const processed: ProcessedTransaction[] = [];
     const existingTransactionsSet = new Set<string>();
 
-    // Build exhaustive duplicate key set for selected account
+    // Criar chave de duplicados baseada APENAS em DATA e VALOR (em centavos) para a conta selecionada
     existingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
         const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-        const valueKey = Number(lan.lan_valor).toFixed(2);
-        const descKey = normalizeDesc(lan.lan_descricao || '');
-        existingTransactionsSet.add(`${dateKey}|${valueKey}|${descKey}`);
+        const valueCents = Math.round(Number(lan.lan_valor) * 100);
+        existingTransactionsSet.add(`${dateKey}|${valueCents}`);
       }
     });
 
     for (const tx of parsed) {
       const val = Number(tx.value);
       const dateKey = format(parseDateString(tx.date), 'yyyy-MM-dd');
-      const valueKey = val.toFixed(2);
-      const descKey = normalizeDesc(tx.description);
+      const valueCents = Math.round(val * 100);
       
-      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}|${descKey}`);
-      let suggestedId: string | null = null;
-      const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descKey.includes(k));
-
-      if (useAiClassification && !isDuplicate) {
-        suggestedId = isTransfer ? systemCategories.transferenciaId : await classifyWithAI(tx.description, tx.value, categories);
-      }
-
+      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueCents}`);
+      
       processed.push({
         ...tx,
         id: Math.random().toString(36).substring(7),
         date: dateKey,
         value: val,
         type: val >= 0 ? 'receita' : 'despesa',
-        suggestedCategoryId: suggestedId,
-        suggestedCategoryName: categories.find(c => c.cat_id === suggestedId)?.cat_nome || null,
+        suggestedCategoryId: null,
+        suggestedCategoryName: null,
         status: isDuplicate ? 'duplicate' : 'new',
         ignore: isDuplicate,
-        isTransferCandidate: isTransfer,
+        isTransferCandidate: false,
         selectedLinkedAccountId: null,
       });
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyWithAI, selectedAccountId]);
+  }, [existingLancamentos, selectedAccountId]);
 
   const handleProcessFile = async () => {
     if (!selectedFile || !selectedAccountId) return;
@@ -275,20 +241,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     const toProcess = processedTransactions.filter(tx => !tx.ignore);
     try {
       for (const tx of toProcess) {
-        if (tx.suggestedCategoryId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
-          const sId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
-          const dId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
-          const v = Math.abs(tx.value);
-          const sN = accounts.find(a => a.con_id === sId)?.con_nome;
-          const dN = accounts.find(a => a.con_id === dId)?.con_nome;
-
-          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dN}`, lan_valor: -v, lan_categoria: systemCategories.transferenciaId, lan_conta: sId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sN}`, lan_valor: v, lan_categoria: systemCategories.transferenciaId, lan_conta: dId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: v, tra_conta_origem: sId, tra_conta_destino: dId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: true }).select().single();
-          await supabase.from('lancamentos').update({ lan_transferencia: nT.tra_id }).in('lan_id', [lO.lan_id, lD.lan_id]);
-        } else {
-          await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: true, lan_importado: true });
-        }
+        await supabase.from('lancamentos').insert({ 
+          lan_data: tx.date, 
+          lan_descricao: tx.description, 
+          lan_valor: tx.value, 
+          lan_categoria: tx.suggestedCategoryId, 
+          lan_conta: selectedAccountId, 
+          lan_grupo: grupoId, 
+          lan_conciliado: true, 
+          lan_importado: true 
+        });
       }
       showSuccess('Importação concluída!');
       localStorage.removeItem(LOCAL_STORAGE_KEYS.processedTransactions);
@@ -317,13 +279,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-text-secondary-light text-sm mb-1">
-          <a className="hover:text-primary-new" href="#">Financeiro</a>
-          <ChevronRight className="w-4 h-4" />
-          <span className="text-text-main-light font-medium">Importação</span>
-        </div>
         <h1 className="text-3xl font-black tracking-tight text-text-main-light">Importação de Extratos</h1>
-        <p className="text-text-secondary-light text-lg">Sincronize arquivos bancários com detecção de duplicados.</p>
+        <p className="text-text-secondary-light text-lg">Validação simplificada por Data e Valor.</p>
       </div>
 
       <Card className="bg-card-light rounded-2xl shadow-soft border border-border-light overflow-hidden">
@@ -353,7 +310,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </Label>
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 shrink-0 mt-0.5" size={20} />
-                  <div className="text-sm text-yellow-800"><p className="font-bold mb-1">Dica de Duplicados</p><p>Comparamos data, valor e descrição com os lançamentos já existentes nesta conta.</p></div>
+                  <div className="text-sm text-yellow-800"><p className="font-bold mb-1">Aviso de Duplicados</p><p>O sistema agora detecta lançamentos que tenham a <b>mesma data e o mesmo valor</b> nesta conta específica.</p></div>
                 </div>
               </div>
               <div className="flex flex-col">
@@ -368,60 +325,31 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-primary-new/5 rounded-xl border border-primary-new/10">
-                <div className="flex items-center gap-3">
-                  <Lightbulb className="text-primary-new" />
-                  <div><p className="text-sm font-bold">Inteligência Artificial</p><p className="text-xs text-text-secondary-light">Sugerir categorias automaticamente.</p></div>
-                </div>
-                <Switch checked={useAiClassification} onCheckedChange={setUseAiClassification} />
-              </div>
-
               <div className="overflow-x-auto rounded-xl border border-border-light">
                 <Table>
                   <TableHeader><TableRow className="bg-background-light"><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-center">Importar?</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {processedTransactions.map((tx) => {
-                      const uniqueCategoriesList = categories.reduce((acc: Category[], current) => {
-                        const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
-                        if (idx === -1) return acc.concat([current]);
-                        if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
-                          const next = [...acc];
-                          next[idx] = current;
-                          return next;
-                        }
-                        return acc;
-                      }, []);
-
-                      return (
-                        <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
-                          <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="text-sm">
-                            {tx.description}
-                            {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Lançamento Duplicado</span>}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                                <SelectContent className={selectContentStyles}>{uniqueCategoriesList.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
-                              </Select>
-                              {tx.suggestedCategoryId === systemCategories.transferenciaId && (
-                                <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
-                                  <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
-                                  <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
-                                </Select>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
-                              {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {processedTransactions.map((tx) => (
+                      <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
+                        <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-sm">
+                          {tx.description}
+                          {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Já existe na conta</span>}
+                        </TableCell>
+                        <TableCell>
+                          <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                            <SelectContent className={selectContentStyles}>{categories.filter(c => c.cat_tipo !== 'sistema').map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
+                            {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
