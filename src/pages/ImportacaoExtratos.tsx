@@ -81,7 +81,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
 
-  // Normalize description for comparison (kept for AI classification and transfer detection)
+  // Normalize description for comparison
   const normalizeDesc = (desc: string) => desc.toLowerCase().replace(/\s+/g, ' ').trim();
 
   // Load state from localStorage on mount
@@ -189,22 +189,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     existingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
         const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-        // Simplificando a chave de comparação para Data + Valor Arredondado
-        const valueKey = Math.abs(Number(lan.lan_valor)).toFixed(2);
-        existingTransactionsSet.add(`${dateKey}|${valueKey}`);
+        const valueKey = Number(lan.lan_valor).toFixed(2);
+        const descKey = normalizeDesc(lan.lan_descricao || '');
+        existingTransactionsSet.add(`${dateKey}|${valueKey}|${descKey}`);
       }
     });
 
     for (const tx of parsed) {
       const val = Number(tx.value);
       const dateKey = format(parseDateString(tx.date), 'yyyy-MM-dd');
-      const valueKey = Math.abs(val).toFixed(2);
+      const valueKey = val.toFixed(2);
       const descKey = normalizeDesc(tx.description);
       
-      // Nova chave de comparação simplificada
-      const checkKey = `${dateKey}|${valueKey}`;
-      
-      const isDuplicate = existingTransactionsSet.has(checkKey);
+      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}|${descKey}`);
       let suggestedId: string | null = null;
       const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descKey.includes(k));
 
@@ -366,7 +363,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
                   <Input id="file-upload" type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
                 </Label>
-                {selectedFile && <div className="mt-2 text-xs flex items-center justify-between"><span>{selectedFile.name}</span><Button variant="ghost" size="icon" onClick={handleRemoveFile}><XCircle className="w-4 h-4 text-red-500" /></Button></div>}
+                {selectedFile && <div className="mt-2 text-xs flex items-center justify-between"><span>{selectedFile.name}</span><Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)}><XCircle className="w-4 h-4 text-red-500" /></Button></div>}
               </div>
             </div>
           ) : (
