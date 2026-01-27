@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowDown, Check, Info, CloudUpload, ChevronRight, XCircle, Loader2, Lightbulb } from 'lucide-react';
+import { ArrowDown, Check, Info, CloudUpload, ChevronRight, XCircle, Loader2, Lightbulb, AlertTriangle } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,20 +44,17 @@ interface ProcessedTransaction extends ParsedTransaction {
   type: 'receita' | 'despesa';
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
-  status: 'new' | 'duplicate' | 'ignored';
+  status: 'new' | 'duplicate' | 'potential_duplicate';
   ignore: boolean;
   isTransferCandidate: boolean;
   selectedLinkedAccountId: string | null;
 }
 
-// Constantes de persistência movidas para fora do componente para evitar recriação e re-execução de efeitos
 const LOCAL_STORAGE_KEYS = {
   selectedAccountId: 'import_selected_account_id',
   processedTransactions: 'import_processed_transactions',
   uploadStep: 'import_upload_step',
   useAiClassification: 'import_use_ai_classification',
-  lastSelectedFileName: 'import_last_selected_file_name',
-  lastSelectedFileSize: 'import_last_selected_file_size',
 };
 
 const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
@@ -66,7 +63,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<'upload' | 'preview'>('upload');
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -79,9 +75,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [useAiClassification, setUseAiClassification] = useState(true);
   const [systemCategories, setSystemCategories] = useState({ transferenciaId: null as string | null });
 
-  const [lastSelectedFileName, setLastSelectedFileName] = useState<string | null>(null);
-  const [lastSelectedFileSize, setLastSelectedFileSize] = useState<number | null>(null);
-
   // Helper to format currency
   const formatCurrency = useCallback((value: number) => {
     if (hideValues) return '••••••';
@@ -90,45 +83,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const clearPersistedState = useCallback(() => {
     Object.values(LOCAL_STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-    setLastSelectedFileName(null);
-    setLastSelectedFileSize(null);
   }, []);
 
-  // Load state from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedAccountId = localStorage.getItem(LOCAL_STORAGE_KEYS.selectedAccountId);
-      const savedTransactions = localStorage.getItem(LOCAL_STORAGE_KEYS.processedTransactions);
-      const savedStep = localStorage.getItem(LOCAL_STORAGE_KEYS.uploadStep);
-      const savedAiClassification = localStorage.getItem(LOCAL_STORAGE_KEYS.useAiClassification);
-      const savedFileName = localStorage.getItem(LOCAL_STORAGE_KEYS.lastSelectedFileName);
-      const savedFileSize = localStorage.getItem(LOCAL_STORAGE_KEYS.lastSelectedFileSize);
-
-      if (savedAccountId) setSelectedAccountId(savedAccountId);
-      if (savedTransactions) setProcessedTransactions(JSON.parse(savedTransactions));
-      if (savedStep) setUploadStep(savedStep as 'upload' | 'preview');
-      if (savedAiClassification) setUseAiClassification(savedAiClassification === 'true');
-      if (savedFileName) setLastSelectedFileName(savedFileName);
-      if (savedFileSize) setLastSelectedFileSize(Number(savedFileSize));
-    } catch (error) {
-      console.error('Failed to load state from localStorage:', error);
-      clearPersistedState();
-    }
-  }, [clearPersistedState]);
-
-  // Save state to localStorage
-  useEffect(() => {
-    if (selectedAccountId) localStorage.setItem(LOCAL_STORAGE_KEYS.selectedAccountId, selectedAccountId);
-    if (processedTransactions.length > 0) {
-      localStorage.setItem(LOCAL_STORAGE_KEYS.processedTransactions, JSON.stringify(processedTransactions));
-    }
-    localStorage.setItem(LOCAL_STORAGE_KEYS.uploadStep, uploadStep);
-    localStorage.setItem(LOCAL_STORAGE_KEYS.useAiClassification, String(useAiClassification));
-    if (lastSelectedFileName) localStorage.setItem(LOCAL_STORAGE_KEYS.lastSelectedFileName, lastSelectedFileName);
-    if (lastSelectedFileSize) localStorage.setItem(LOCAL_STORAGE_KEYS.lastSelectedFileSize, String(lastSelectedFileSize));
-  }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification, lastSelectedFileName, lastSelectedFileSize]);
-
-  // Fetch initial data
+  // Load initial data
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -170,12 +127,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     };
 
     if (user) fetchInitialData();
-  }, [user, selectedAccountId]);
+  }, [user]);
 
   const cleanAndParseFloat = (value: any): number => {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
-      const cleanedValue = value.replace(/\./g, '').replace(',', '.');
+      const cleanedValue = value.trim().replace(/\./g, '').replace(',', '.');
       return parseFloat(cleanedValue);
     }
     return 0;
@@ -183,31 +140,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const parseDateString = (dateStr: string): Date => {
     if (!dateStr) return new Date();
-    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return parseISO(dateStr);
-    if (dateStr.match(/^\d{8}$/)) {
-      return new Date(parseInt(dateStr.substring(0, 4)), parseInt(dateStr.substring(4, 6)) - 1, parseInt(dateStr.substring(6, 8)));
-    }
-    if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-      const [day, month, year] = dateStr.split('/').map(Number);
+    const cleanDateStr = dateStr.trim();
+    if (cleanDateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return parseISO(cleanDateStr);
+    if (cleanDateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      const [day, month, year] = cleanDateStr.split('/').map(Number);
       return new Date(year, month - 1, day);
     }
     return new Date();
-  };
-
-  const extractPersonName = (description: string): string | null => {
-    const lowerDescription = description.toLowerCase();
-    const patterns = [
-      /pix (recebido|enviado) para (.*?)(?:\s|$)/,
-      /pix (recebido|enviado) de (.*?)(?:\s|$)/,
-      /ted (para|de) (.*?)(?:\s|$)/,
-      /transferência (para|de) (.*?)(?:\s|$)/,
-      /transferencia (para|de) (.*?)(?:\s|$)/,
-    ];
-    for (const pattern of patterns) {
-      const match = lowerDescription.match(pattern);
-      if (match && match[2]) return match[2].split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-    }
-    return null;
   };
 
   const classifyTransactionWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
@@ -236,49 +175,48 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const processTransactions = useCallback(async (parsed: ParsedTransaction[]) => {
     const processed: ProcessedTransaction[] = [];
-    const existingDescriptionsMap = new Map<string, string>();
-    const existingTransactionsSet = new Set<string>();
-    const personCategoryMap = new Map<string, { categoryId: string, date: Date }>();
-
-    // Filtrar lançamentos existentes APENAS para a conta selecionada para detecção de duplicados precisa
+    
+    // 1. Mapear ocorrências de Data+Valor na conta de destino (para detecção de duplicados)
+    // Usamos um Map de counts para lidar com múltiplos lançamentos de mesmo valor no mesmo dia
+    const duplicateCounter = new Map<string, number>();
+    
     existingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
-        const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-        // Usar toFixed(2) para garantir que a comparação numérica não falhe por precisão de string
-        const duplicateKey = `${formattedExistingDate}-${Number(lan.lan_valor).toFixed(2)}`;
-        existingTransactionsSet.add(duplicateKey);
+        const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
+        const valKey = Number(lan.lan_valor).toFixed(2);
+        const key = `${dateKey}|${valKey}`;
+        duplicateCounter.set(key, (duplicateCounter.get(key) || 0) + 1);
       }
-      
-      if (lan.lan_descricao) existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
-      const personName = extractPersonName(lan.lan_descricao || '');
-      if (personName) {
-        const lanDate = parseISO(lan.lan_data);
-        const lanCategory = categories.find(c => c.cat_id === lan.lan_categoria);
-        if (lanCategory && lanCategory.cat_tipo !== 'sistema') {
-          const currentEntry = personCategoryMap.get(personName);
-          if (!currentEntry || lanDate > currentEntry.date) personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
-        }
-      }
+    });
+
+    // 2. Mapear categorias por descrição (histórico)
+    const historyMap = new Map<string, string>();
+    existingLancamentos.forEach(lan => {
+      if (lan.lan_descricao) historyMap.set(lan.lan_descricao.toLowerCase().trim(), lan.lan_categoria);
     });
 
     for (const tx of parsed) {
       const value = Number(tx.value);
       const formattedDate = format(parseDateString(tx.date), 'yyyy-MM-dd');
+      const valKey = value.toFixed(2);
+      const key = `${formattedDate}|${valKey}`;
       
-      // Checar duplicidade com formatação numérica idêntica à do Set
-      const checkKey = `${formattedDate}-${value.toFixed(2)}`;
-      let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
+      // Checar se "ainda existe" uma ocorrência disponível no contador de duplicados
+      const availableDuplicates = duplicateCounter.get(key) || 0;
+      let status: 'new' | 'duplicate' | 'potential_duplicate' = 'new';
+      
+      if (availableDuplicates > 0) {
+        status = 'duplicate';
+        duplicateCounter.set(key, availableDuplicates - 1); // Consumir a duplicata
+      }
       
       let suggestedCategoryId: string | null = null;
-      let isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => tx.description.toLowerCase().includes(k));
+      const isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => tx.description.toLowerCase().includes(k));
 
       if (useAiClassification && status === 'new') {
-        if (isTransferCandidate) {
-          const personName = extractPersonName(tx.description);
-          suggestedCategoryId = (personName && personCategoryMap.get(personName)?.categoryId) || systemCategories.transferenciaId;
-        } else {
-          suggestedCategoryId = await classifyTransactionWithAI(tx.description, tx.value, categories) || existingDescriptionsMap.get(tx.description.toLowerCase()) || null;
-        }
+        suggestedCategoryId = await classifyTransactionWithAI(tx.description, tx.value, categories) || historyMap.get(tx.description.toLowerCase().trim()) || null;
+      } else {
+        suggestedCategoryId = historyMap.get(tx.description.toLowerCase().trim()) || null;
       }
 
       processed.push({
@@ -297,7 +235,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyTransactionWithAI, selectedAccountId]);
+  }, [existingLancamentos, categories, useAiClassification, classifyTransactionWithAI, selectedAccountId]);
 
   const handleProcessFile = async () => {
     if (!selectedFile || !selectedAccountId) return;
@@ -307,16 +245,20 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       reader.onload = async (e) => {
         const text = e.target?.result as string;
         let parsed: ParsedTransaction[] = [];
+        
         if (selectedFile.name.endsWith('.csv')) {
           Papa.parse(text, {
+            skipEmptyLines: true,
             complete: async (results) => {
-              parsed = results.data.map((row: any, i: number) => ({
-                id: `temp-${i}`,
-                date: String(row[0]),
-                description: String(row[1]),
-                value: cleanAndParseFloat(row[2]),
-                originalRow: row,
-              })).filter((r: any) => r.date && r.description);
+              parsed = results.data
+                .map((row: any, i: number) => ({
+                  id: `temp-${i}`,
+                  date: String(row[0] || ''),
+                  description: String(row[1] || ''),
+                  value: cleanAndParseFloat(row[2]),
+                  originalRow: row,
+                }))
+                .filter((r: any) => r.date && r.description && !isNaN(r.value));
               await processTransactions(parsed);
               setLoading(false);
             }
@@ -327,11 +269,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const dataRows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
           parsed = dataRows.slice(1).map((row: any, i: number) => ({
             id: `temp-${i}`,
-            date: String(row[0]),
-            description: String(row[1]),
+            date: String(row[0] || ''),
+            description: String(row[1] || ''),
             value: cleanAndParseFloat(row[2]),
             originalRow: row,
-          })).filter((r: any) => r.date && r.description);
+          })).filter((r: any) => r.date && r.description && !isNaN(r.value));
           await processTransactions(parsed);
           setLoading(false);
         }
@@ -379,18 +321,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     setSelectedFile(null);
     setProcessedTransactions([]);
     setUploadStep('upload');
-    clearPersistedState();
   };
 
   const uniqueCategories = useMemo(() => {
     return categories.reduce((acc: Category[], current) => {
       const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
       if (idx === -1) return acc.concat([current]);
-      if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
-        const next = [...acc];
-        next[idx] = current;
-        return next;
-      }
       return acc;
     }, []);
   }, [categories]);
@@ -398,7 +334,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const summary = useMemo(() => ({
     toImport: processedTransactions.filter(tx => !tx.ignore).length,
     duplicates: processedTransactions.filter(tx => tx.status === 'duplicate').length,
-    ignored: processedTransactions.filter(tx => tx.ignore).length,
+    totalParsed: processedTransactions.length,
     balance: processedTransactions.filter(tx => !tx.ignore).reduce((s, tx) => s + tx.value, 0)
   }), [processedTransactions]);
 
@@ -417,7 +353,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           <span className="text-text-main-light font-medium">Importação</span>
         </div>
         <h1 className="text-3xl font-black tracking-tight text-text-main-light">Importação de Extratos</h1>
-        <p className="text-text-secondary-light text-lg">Sincronize seus arquivos OFX, CSV ou XLS automaticamente.</p>
+        <p className="text-text-secondary-light text-lg">Compare e concilie seus lançamentos bancários.</p>
       </div>
 
       <Card className="bg-card-light rounded-2xl shadow-soft border border-border-light overflow-hidden">
@@ -448,8 +384,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 shrink-0 mt-0.5" size={20} />
                   <div className="text-sm text-yellow-800">
-                    <p className="font-bold mb-1">Atenção ao formato</p>
-                    <p>CSV padrão: Coluna 1 (Data), Coluna 2 (Descrição), Coluna 3 (Valor).</p>
+                    <p className="font-bold mb-1">Dica de Duplicados</p>
+                    <p>Lançamentos com mesma data e valor na conta selecionada serão marcados como duplicados automaticamente.</p>
                   </div>
                 </div>
               </div>
@@ -459,11 +395,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <div className="flex flex-col items-center p-4 text-center">
                     <CloudUpload className="text-primary-new mb-4" size={32} />
                     <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
-                    <p className="text-xs text-text-secondary-light">OFX, CSV ou XLS (max. 10MB)</p>
+                    <p className="text-xs text-text-secondary-light">CSV ou XLS (max. 10MB)</p>
                   </div>
                   <Input id="file-upload" type="file" className="hidden" onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) { setSelectedFile(f); setLastSelectedFileName(f.name); }
+                    if (f) setSelectedFile(f);
                   }} />
                 </Label>
                 {selectedFile && <div className="mt-2 text-xs flex items-center justify-between"><span>{selectedFile.name}</span><Button variant="ghost" size="icon" onClick={handleRemoveFile}><XCircle className="w-4 h-4 text-red-500" /></Button></div>}
@@ -476,7 +412,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <Lightbulb className="text-primary-new" />
                   <div>
                     <p className="text-sm font-bold">Classificação Inteligente</p>
-                    <p className="text-xs text-text-secondary-light">Categorização baseada no seu histórico.</p>
+                    <p className="text-xs text-text-secondary-light">Categorização baseada no seu histórico e IA.</p>
                   </div>
                 </div>
                 <Switch checked={useAiClassification} onCheckedChange={setUseAiClassification} />
@@ -490,32 +426,36 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                       <TableHead>Descrição</TableHead>
                       <TableHead className="w-[200px]">Categoria</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {processedTransactions.map((tx) => (
-                      <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50")}>
+                      <TableRow key={tx.id} className={cn(tx.ignore && "bg-gray-50/50 opacity-60", tx.status === 'duplicate' && "bg-orange-50/30")}>
                         <TableCell className="text-xs font-medium">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="text-sm">{tx.description}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col">
+                            <span>{tx.description}</span>
+                            {tx.status === 'duplicate' && <span className="text-[10px] text-orange-600 font-bold flex items-center gap-1"><AlertTriangle size={10} /> Possível duplicata encontrada no sistema</span>}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
                               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
                               <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
                             </Select>
-                            {tx.suggestedCategoryId === systemCategories.transferenciaId && (
-                              <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
-                                <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
-                                <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
-                              </Select>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
                         <TableCell className="text-center">
-                          <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
-                            {tx.ignore ? <XCircle className="w-4 h-4 text-red-500" /> : <Check className="w-4 h-4 text-emerald-500" />}
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}
+                            className={cn("rounded-lg font-bold text-[10px] uppercase", tx.ignore ? "text-red-500 bg-red-50" : "text-emerald-600 bg-emerald-50")}
+                          >
+                            {tx.ignore ? "Ignorar" : "Importar"}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -524,11 +464,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </Table>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-4"><p className="text-[10px] font-bold uppercase text-text-secondary-light">Importar</p><p className="text-xl font-bold text-emerald-600">{summary.toImport}</p></Card>
-                <Card className="p-4"><p className="text-[10px] font-bold uppercase text-text-secondary-light">Duplicados</p><p className="text-xl font-bold text-orange-600">{summary.duplicates}</p></Card>
-                <Card className="p-4"><p className="text-[10px] font-bold uppercase text-text-secondary-light">Ignorados</p><p className="text-xl font-bold text-gray-400">{summary.ignored}</p></Card>
-                <Card className="p-4"><p className="text-[10px] font-bold uppercase text-text-secondary-light">Saldo Previsto</p><p className="text-xl font-bold text-primary-new">{formatCurrency(summary.balance)}</p></Card>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="p-4 flex items-center justify-between">
+                  <div><p className="text-[10px] font-bold uppercase text-text-secondary-light">Lançamentos Novos</p><p className="text-xl font-bold text-emerald-600">{summary.toImport}</p></div>
+                  <Check className="text-emerald-500 opacity-20" size={32} />
+                </Card>
+                <Card className="p-4 flex items-center justify-between">
+                  <div><p className="text-[10px] font-bold uppercase text-text-secondary-light">Duplicados Ocultos</p><p className="text-xl font-bold text-orange-600">{summary.duplicates}</p></div>
+                  <AlertTriangle className="text-orange-500 opacity-20" size={32} />
+                </Card>
+                <Card className="p-4 flex items-center justify-between">
+                  <div><p className="text-[10px] font-bold uppercase text-text-secondary-light">Saldo do Período</p><p className="text-xl font-bold text-primary-new">{formatCurrency(summary.balance)}</p></div>
+                  <ArrowDown className="text-primary-new opacity-20" size={32} />
+                </Card>
               </div>
             </div>
           )}
@@ -542,7 +490,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             </Button>
           ) : (
             <Button onClick={handleConfirmImport} disabled={isImporting || summary.toImport === 0} className="bg-primary-new text-white font-bold">
-              {isImporting ? <Loader2 className="animate-spin mr-2" /> : null} Importar {summary.toImport} Lançamentos
+              {isImporting ? <Loader2 className="animate-spin mr-2" /> : null} Confirmar Importação ({summary.toImport})
             </Button>
           )}
         </div>
