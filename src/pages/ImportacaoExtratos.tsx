@@ -145,7 +145,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
           supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
-          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_categoria').eq('lan_grupo', userData.usu_grupo),
+          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_categoria, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
 
         setAccounts(accountsRes.data || []);
@@ -240,9 +240,15 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     const existingTransactionsSet = new Set<string>();
     const personCategoryMap = new Map<string, { categoryId: string, date: Date }>();
 
+    // Filtrar lançamentos existentes APENAS para a conta selecionada para detecção de duplicados precisa
     existingLancamentos.forEach(lan => {
-      const duplicateKey = `${format(parseISO(lan.lan_data), 'yyyy-MM-dd')}-${lan.lan_valor}`;
-      existingTransactionsSet.add(duplicateKey);
+      if (lan.lan_conta === selectedAccountId) {
+        const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
+        // Usar toFixed(2) para garantir que a comparação numérica não falhe por precisão de string
+        const duplicateKey = `${formattedExistingDate}-${Number(lan.lan_valor).toFixed(2)}`;
+        existingTransactionsSet.add(duplicateKey);
+      }
+      
       if (lan.lan_descricao) existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
       const personName = extractPersonName(lan.lan_descricao || '');
       if (personName) {
@@ -258,7 +264,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     for (const tx of parsed) {
       const value = Number(tx.value);
       const formattedDate = format(parseDateString(tx.date), 'yyyy-MM-dd');
-      let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(`${formattedDate}-${value}`) ? 'duplicate' : 'new';
+      
+      // Checar duplicidade com formatação numérica idêntica à do Set
+      const checkKey = `${formattedDate}-${value.toFixed(2)}`;
+      let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
+      
       let suggestedCategoryId: string | null = null;
       let isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => tx.description.toLowerCase().includes(k));
 
@@ -287,7 +297,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyTransactionWithAI]);
+  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyTransactionWithAI, selectedAccountId]);
 
   const handleProcessFile = async () => {
     if (!selectedFile || !selectedAccountId) return;
