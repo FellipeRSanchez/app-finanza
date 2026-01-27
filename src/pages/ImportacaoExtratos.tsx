@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { showSuccess, showError } from '@/utils/toast';
 import Papa from 'papaparse'; // For CSV parsing
-import * as XLSX from 'xlsx'; // For XLSX parsing
+import *s XLSX from 'xlsx'; // For XLSX parsing
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch'; // Assuming shadcn switch
@@ -964,7 +964,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
                                 {transaction.suggestedCategoryId === systemCategories.transferenciaId && (
                                   <Select
-                                    key={`${transaction.id}-linked-account`} {/* Adicionando key aqui */}
+                                    key={`${transaction.id}-linked-account`} 
                                     value={transaction.selectedLinkedAccountId || ''}
                                     onValueChange={(value) => {
                                       setProcessedTransactions(prev => prev.map(tx =>
