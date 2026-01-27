@@ -54,7 +54,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Fixed: Initial state should be null
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<'upload' | 'preview'>('upload');
 
@@ -280,20 +280,55 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     return new Date();
   };
 
+  // Helper to extract person's name from description
+  const extractPersonName = (description: string): string | null => {
+    const lowerDescription = description.toLowerCase();
+    // Regex to capture names after common transfer indicators
+    // Example: "PIX Recebido - João Silva", "TED para Maria", "Transferência de Empresa X"
+    const patterns = [
+      /pix (recebido|enviado) - (.*?)(?:\s|$)/,
+      /ted (para|de) (.*?)(?:\s|$)/,
+      /transferência (para|de) (.*?)(?:\s|$)/,
+      /transferencia (para|de) (.*?)(?:\s|$)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = lowerDescription.match(pattern);
+      if (match && match[2]) {
+        // Capitalize first letter of each word for cleaner name
+        return match[2].split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      }
+    }
+    return null;
+  };
+
   // Process transactions (duplicate detection, AI classification)
   const processTransactions = useCallback(async (parsed: ParsedTransaction[], accountId: string) => {
     const processed: ProcessedTransaction[] = [];
     const existingDescriptionsMap = new Map<string, string>(); // description -> category_id
-    const existingTransactionsSet = new Set<string>(); // For duplicate detection
+    const existingTransactionsSet = new Set<string>(); // For duplicate detection (date + value)
+    const personCategoryMap = new Map<string, { categoryId: string, date: Date }>(); // personName -> {categoryId, date}
 
     // Populate maps from existing lancamentos
     existingLancamentos.forEach(lan => {
       const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-      // Changed duplicate key to only use date and value
-      const key = `${formattedExistingDate}-${lan.lan_valor}`; 
-      existingTransactionsSet.add(key);
+      // Duplicate key: date + value
+      const duplicateKey = `${formattedExistingDate}-${lan.lan_valor}`; 
+      existingTransactionsSet.add(duplicateKey);
+
+      // Populate existingDescriptionsMap for general AI classification
       if (lan.lan_descricao) {
         existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
+      }
+
+      // Populate personCategoryMap for transfer classification
+      const personName = extractPersonName(lan.lan_descricao || '');
+      if (personName) {
+        const lanDate = parseISO(lan.lan_data);
+        const existingEntry = personCategoryMap.get(personName);
+        if (!existingEntry || lanDate > existingEntry.date) { // Keep the latest category for a person
+          personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
+        }
       }
     });
 
@@ -308,7 +343,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       let isTransferCandidate = false;
 
       const lowerDescription = tx.description.toLowerCase();
-      const transferKeywords = ['transferencia', 'ted', 'pix', 'doc', 'transferência']; // Added 'transferência'
+      const transferKeywords = ['transferencia', 'ted', 'pix', 'doc', 'transferência'];
       if (transferKeywords.some(keyword => lowerDescription.includes(keyword))) {
         isTransferCandidate = true;
       }
@@ -319,13 +354,27 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         status = 'duplicate';
       }
 
-      // AI Classification (mocked)
+      // AI Classification
       if (useAiClassification && status === 'new') {
-        if (isTransferCandidate && systemCategories.transferenciaId) {
-          // For transfers, suggest the system transfer category
-          suggestedCategoryId = systemCategories.transferenciaId;
-          suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+        if (isTransferCandidate) {
+          const personName = extractPersonName(tx.description);
+          if (personName) {
+            const matchedPersonCategory = personCategoryMap.get(personName);
+            if (matchedPersonCategory) {
+              suggestedCategoryId = matchedPersonCategory.categoryId;
+              suggestedCategoryName = categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null;
+            } else {
+              // If no specific person category, default to system transfer category
+              suggestedCategoryId = systemCategories.transferenciaId;
+              suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+            }
+          } else {
+            // If it's a transfer candidate but no person name extracted, default to system transfer category
+            suggestedCategoryId = systemCategories.transferenciaId;
+            suggestedCategoryName = categories.find(c => c.cat_id === systemCategories.transferenciaId)?.cat_nome || null;
+          }
         } else {
+          // Existing AI Classification for non-transfer candidates
           const matchedCategoryId = existingDescriptionsMap.get(lowerDescription);
           if (matchedCategoryId) {
             suggestedCategoryId = matchedCategoryId;
