@@ -799,7 +799,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" size={20} />
                   <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                    <p class="font-bold mb-1">Atenção ao formato</p>
+                    <p className="font-bold mb-1">Atenção ao formato</p>
                     <p>
                       Para arquivos CSV, utilize o formato padrão: **Coluna 1: Data (DD/MM/AAAA ou AAAA-MM-DD), Coluna 2: Descrição, Coluna 3: Valor (1.234,56 ou 1234.56)**.
                     </p>
