@@ -9,10 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CalendarDays, CheckCircle2, XCircle, Scale, TrendingUp, TrendingDown, Filter, RefreshCcw } from 'lucide-react';
+import { CalendarDays, CheckCircle2, XCircle, Scale, Filter, RefreshCcw, AlertCircle } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, subMonths, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
@@ -32,13 +31,8 @@ interface Transaction {
   lan_valor: number;
   lan_categoria: string;
   categorias?: { cat_nome: string };
-  lan_conciliado: boolean; // Adicionado para refletir o status do DB
-  is_checked: boolean; // Estado local do checkbox
-  saldo_acumulado: number; // Novo campo para o saldo acumulado
-}
-
-interface DailyBalance {
-  data: string;
+  lan_conciliado: boolean;
+  is_checked: boolean;
   saldo_acumulado: number;
 }
 
@@ -52,27 +46,14 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
   const [initialBalance, setInitialBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [dailyEvolution, setDailyEvolution] = useState<DailyBalance[]>([]);
   const [bankStatementBalance, setBankStatementBalance] = useState<string>('');
   const [showUncheckedOnly, setShowUncheckedOnly] = useState(false);
-  const [isReconciling, setIsReconciling] = useState(false); // Novo estado para o botão de conciliar
+  const [isReconciling, setIsReconciling] = useState(false);
 
   const formatCurrency = useCallback((value: number) => {
     if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
-
-  useEffect(() => {
-    if (user) {
-      fetchAccounts();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (selectedAccountId && startDate && endDate) {
-      fetchReconciliationData();
-    }
-  }, [selectedAccountId, startDate, endDate]);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -105,7 +86,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Saldo inicial do período
+      // 1. Buscar saldo acumulado do dia imediatamente anterior ao início do período
       const { data: initialBalanceData } = await supabase
         .from('vw_saldo_diario_conta')
         .select('saldo_acumulado')
@@ -113,51 +94,44 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .lt('data', startDate)
         .order('data', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       let initial = initialBalanceData?.saldo_acumulado || 0;
       
+      // Se não houver histórico anterior, tenta usar o saldo inicial da conta (con_limite)
       if (!initialBalanceData) {
         const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
-        if (selectedAccount && parseISO(startDate) <= parseISO(selectedAccount.created_at || '')) {
-          initial = selectedAccount.con_limite || 0;
+        if (selectedAccount) {
+          initial = Number(selectedAccount.con_limite || 0);
         }
       }
       setInitialBalance(initial);
 
-      // 2. Movimentação do período
+      // 2. Buscar transações do período
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
-        .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado') // Incluir lan_conciliado
+        .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
         .eq('lan_conta', selectedAccountId)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
-        .order('lan_data', { ascending: true });
+        .order('lan_data', { ascending: true })
+        .order('created_at', { ascending: true }); // Ordenação secundária para estabilidade
 
       if (tError) throw tError;
       
-      let currentAccumulatedBalance = initial;
+      let runningBalance = initial;
       const processedTransactions = (transactionsData || []).map((t: any) => {
-        currentAccumulatedBalance += t.lan_valor;
-        return { ...t, is_checked: t.lan_conciliado, saldo_acumulado: currentAccumulatedBalance };
+        runningBalance += Number(t.lan_valor);
+        return { 
+          ...t, 
+          is_checked: t.lan_conciliado, 
+          saldo_acumulado: runningBalance 
+        };
       });
       setTransactions(processedTransactions);
 
-      // --- DIAGNOSTIC LOGS ---
-      console.log("[ConferenciaBancaria] Saldo Inicial (initial):", initial);
-      console.log("[ConferenciaBancaria] Saldo Acumulado da última transação:", processedTransactions[processedTransactions.length - 1]?.saldo_acumulado);
-      // --- END DIAGNOSTIC LOGS ---
-
-      // 3. Evolução diária do saldo
-      const { data: dailyEvolutionData } = await supabase
-        .from('vw_saldo_diario_conta')
-        .select('data, saldo_acumulado')
-        .eq('lan_conta', selectedAccountId)
-        .gte('data', startDate)
-        .lte('data', endDate)
-        .order('data', { ascending: true });
-
-      setDailyEvolution(dailyEvolutionData || []);
+      console.log("[Conferencia] Saldo Inicial:", initial);
+      console.log("[Conferencia] Saldo Final Calculado:", runningBalance);
 
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
@@ -171,15 +145,15 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (user) fetchAccounts();
   }, [user, fetchAccounts]);
 
-  const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + t.lan_valor, 0);
-  const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(t.lan_valor), 0);
-  const saldoCalculado = initialBalance + totalEntradas - totalSaidas;
+  useEffect(() => {
+    if (selectedAccountId && startDate && endDate) {
+      fetchReconciliationData();
+    }
+  }, [selectedAccountId, startDate, endDate, fetchReconciliationData]);
 
-  // --- DIAGNOSTIC LOGS ---
-  console.log("[ConferenciaBancaria] Total Entradas (do estado de transações):", totalEntradas);
-  console.log("[ConferenciaBancaria] Total Saídas (do estado de transações):", totalSaidas);
-  console.log("[ConferenciaBancaria] Saldo Final Calculado (initialBalance + totalEntradas - totalSaidas):", saldoCalculado);
-  // --- END DIAGNOSTIC LOGS ---
+  const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
+  const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
+  const saldoCalculado = initialBalance + totalEntradas - totalSaidas;
 
   const bankStatementBalanceNum = parseFloat(bankStatementBalance.replace(',', '.')) || 0;
   const difference = bankStatementBalanceNum - saldoCalculado;
@@ -192,7 +166,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
   };
 
   const filteredTransactions = showUncheckedOnly
-    ? transactions.filter(t => !t.lan_conciliado) // Filtrar por lan_conciliado do DB
+    ? transactions.filter(t => !t.lan_conciliado)
     : transactions;
 
   const handleDateRangeChange = (period: string) => {
@@ -229,7 +203,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     const selectedToReconcile = transactions.filter(t => t.is_checked && !t.lan_conciliado);
 
     if (selectedToReconcile.length === 0) {
-      showError('Nenhum lançamento selecionado para conciliar ou já estão conciliados.');
+      showError('Nenhum lançamento selecionado para conciliar.');
       return;
     }
 
@@ -242,11 +216,11 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       if (error) throw error;
 
-      showSuccess(`${selectedToReconcile.length} lançamentos conciliados com sucesso!`);
-      fetchReconciliationData(); // Re-fetch data to update UI
+      showSuccess(`${selectedToReconcile.length} lançamentos conciliados!`);
+      fetchReconciliationData();
     } catch (error) {
-      console.error('Error reconciling transactions:', error);
-      showError('Erro ao conciliar lançamentos.');
+      console.error('Error:', error);
+      showError('Erro ao conciliar.');
     } finally {
       setIsReconciling(false);
     }
@@ -279,7 +253,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
               <SelectTrigger id="account-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
                 <SelectValue placeholder="Selecione uma conta..." />
               </SelectTrigger>
-              <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
+              <SelectContent className="bg-card-light dark:bg-card-dark z-50">
                 {accounts.map(acc => (
                   <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                 ))}
@@ -383,42 +357,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </CardContent>
       </Card>
 
-      {/* Card 3: Chart */}
-      <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
-        <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
-          <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-new" /> Evolução do Saldo
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-0 py-6 h-80">
-          {dailyEvolution.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-text-secondary-light dark:text-text-secondary-dark">
-              Nenhum dado para o gráfico no período selecionado.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={dailyEvolution.map(d => ({ ...d, data: format(parseISO(d.data), 'dd/MM', { locale: ptBR }) }))}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0dbe6" className="dark:stroke-[#2d2438]" />
-                <XAxis dataKey="data" stroke="#756189" className="text-xs" />
-                <YAxis stroke="#756189" className="text-xs" tickFormatter={formatCurrency} />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  labelFormatter={(label: string) => `Data: ${label}`}
-                  contentStyle={{ backgroundColor: 'var(--card-light)', borderColor: 'var(--border-light)', borderRadius: '0.5rem' }}
-                  labelStyle={{ color: 'var(--text-main-light)' }}
-                  itemStyle={{ color: 'var(--text-main-light)' }}
-                />
-                <Line type="monotone" dataKey="saldo_acumulado" stroke="var(--primary-new)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Card 4: Transactions Table */}
+      {/* Card 3: Transactions Table */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438] flex-row items-center justify-between">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -467,34 +406,38 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.length === 0 ? (
+                {loading ? (
+                   Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i}><TableCell colSpan={6} className="h-16 animate-pulse" /></TableRow>
+                  ))
+                ) : filteredTransactions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
+                      <AlertCircle className="mx-auto text-text-secondary-light dark:text-text-secondary-dark mb-4" size={48} />
                       Nenhum lançamento {showUncheckedOnly ? 'não conferido' : ''} no período.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredTransactions.map((t) => {
                     const isIncome = t.lan_valor > 0;
-                    const isHighValue = Math.abs(t.lan_valor) > 1000; // Example threshold for highlighting
                     return (
                       <TableRow key={t.lan_id} className={cn(
                         "group hover:bg-background-light/30 dark:hover:bg-[#2d2438]/30 transition-colors",
-                        t.lan_conciliado && "bg-emerald-50/20 dark:bg-emerald-900/10" // Destaque se já conciliado
+                        t.lan_conciliado && "bg-emerald-50/20 dark:bg-emerald-900/10"
                       )}>
                         <TableCell className="text-center">
                           <input
                             type="checkbox"
                             checked={t.is_checked}
                             onChange={() => handleTransactionCheck(t.lan_id)}
-                            disabled={t.lan_conciliado} // Desabilitar checkbox se já conciliado
+                            disabled={t.lan_conciliado}
                             className="form-checkbox h-4 w-4 text-primary-new rounded border-gray-300 focus:ring-primary-new dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-primary-new"
                           />
                         </TableCell>
                         <TableCell className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark">
                           {format(parseISO(t.lan_data), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
-                        <TableCell className={cn("text-sm font-medium text-text-main-light dark:text-text-main-dark", isHighValue && "font-bold text-primary-new dark:text-white")}>
+                        <TableCell className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
                           {t.lan_descricao}
                         </TableCell>
                         <TableCell className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
@@ -502,8 +445,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-bold text-sm",
-                          isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
-                          isHighValue && "text-lg"
+                          isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                         )}>
                           {formatCurrency(t.lan_valor)}
                         </TableCell>
