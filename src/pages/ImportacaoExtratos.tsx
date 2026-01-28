@@ -67,7 +67,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [existingLancamentos, setExistingLancamentos] = useState<any[]>([]);
+  // existingLancamentos agora será carregado dinamicamente antes do processamento do arquivo
   const [grupoId, setGrupoId] = useState('');
 
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
@@ -106,7 +106,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     localStorage.setItem(LOCAL_STORAGE_KEYS.useAiClassification, String(useAiClassification));
   }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification]);
 
-  // Fetch initial data
+  // Fetch initial data (accounts and categories)
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -115,15 +115,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         if (!userData?.usu_grupo) return;
         setGrupoId(userData.usu_grupo);
 
-        const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
+        const [accountsRes, categoriesRes] = await Promise.all([
           supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
-          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
 
         setAccounts(accountsRes.data || []);
         setCategories(categoriesRes.data || []);
-        setExistingLancamentos(lancamentosRes.data || []);
 
         const transferenciaCat = categoriesRes.data?.find((cat: any) => 
           cat.cat_nome.toLowerCase().includes('transferência') && cat.cat_tipo === 'sistema'
@@ -138,7 +136,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       }
     };
     if (user) fetchInitialData();
-  }, [user]);
+  }, [user, selectedAccountId]); // Adicionado selectedAccountId para re-fetch se mudar
 
   const cleanAndParseFloat = (value: any): number => {
     if (typeof value === 'number') return value;
@@ -178,12 +176,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     } catch { return null; }
   }, []);
 
-  const processTransactions = useCallback(async (parsed: ParsedTransaction[]) => {
+  const processTransactions = useCallback(async (parsed: ParsedTransaction[], currentExistingLancamentos: any[]) => {
     const processed: ProcessedTransaction[] = [];
-    
-    // Simplificando a chave de duplicados para focar apenas em Data e Valor (formato string fixo)
     const existingTransactionsSet = new Set<string>();
-    existingLancamentos.forEach(lan => {
+
+    // Build duplicate key set for the selected account based on fresh data
+    currentExistingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
         const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
         const valueKey = Number(lan.lan_valor).toFixed(2);
@@ -196,9 +194,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const dateKey = format(parseDateString(tx.date), 'yyyy-MM-dd');
       const valueKey = val.toFixed(2);
       
-      // Duplicado se a chave Date+Value existir
       const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}`);
-      
       let suggestedId: string | null = null;
       const descLower = tx.description.toLowerCase();
       const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descLower.includes(k));
@@ -223,48 +219,67 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyWithAI, selectedAccountId]);
+  }, [categories, useAiClassification, systemCategories.transferenciaId, classifyWithAI, selectedAccountId]);
 
   const handleProcessFile = async () => {
-    if (!selectedFile || !selectedAccountId) return;
+    if (!selectedFile || !selectedAccountId || !grupoId) return;
     setLoading(true);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      let parsed: ParsedTransaction[] = [];
-      if (selectedFile.name.endsWith('.csv')) {
-        Papa.parse(text, {
-          header: false,
-          skipEmptyLines: true,
-          complete: async (results) => {
-            parsed = results.data.map((row: any, i: number) => ({
-              id: `t-${i}`,
-              date: String(row[0] || ''),
-              description: String(row[1] || ''),
-              value: cleanAndParseFloat(row[2]),
-              originalRow: row,
-            })).filter((r: any) => r.date && r.description && r.date.length > 5);
-            await processTransactions(parsed);
-            setLoading(false);
-          }
-        });
-      } else {
-        try {
-          const wb = XLSX.read(text, { type: 'string' });
-          const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-          parsed = data.slice(1).map((row: any, i: number) => ({
+
+    try {
+      // Fetch latest existing transactions for the selected account right before processing
+      const { data: latestLancamentos, error: lancamentosError } = await supabase
+        .from('lancamentos')
+        .select('lan_data, lan_valor, lan_conta')
+        .eq('lan_grupo', grupoId)
+        .eq('lan_conta', selectedAccountId); // IMPORTANT: Filter by selected account
+      
+      if (lancamentosError) throw lancamentosError;
+      const currentExistingLancamentos = latestLancamentos || [];
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result as string;
+        let parsed: ParsedTransaction[] = [];
+        if (selectedFile.name.endsWith('.csv')) {
+          Papa.parse(text, {
+            header: false,
+            skipEmptyLines: true,
+            complete: async (results) => {
+              parsed = results.data.map((row: any, i: number) => ({
+                id: `t-${i}`,
+                date: String(row[0] || ''),
+                description: String(row[1] || ''),
+                value: cleanAndParseFloat(row[2]),
+                originalRow: row,
+              })).filter((r: any) => r.date && r.description && r.date.length > 5);
+              await processTransactions(parsed, currentExistingLancamentos);
+              setLoading(false);
+            }
+          });
+        } else if (selectedFile.name.endsWith('.xls') || selectedFile.name.endsWith('.xlsx')) {
+          const workbook = XLSX.read(text, { type: 'string' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const dataRows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          parsed = dataRows.slice(1).map((row: any, i: number) => ({
             id: `t-${i}`,
             date: String(row[0] || ''),
             description: String(row[1] || ''),
             value: cleanAndParseFloat(row[2]),
             originalRow: row,
           })).filter((r: any) => r.date && r.description);
-          await processTransactions(parsed);
-        } catch { showError('Erro ao ler Excel.'); }
-        setLoading(false);
-      }
-    };
-    reader.readAsText(selectedFile);
+          await processTransactions(parsed, currentExistingLancamentos);
+          setLoading(false);
+        } else {
+          showError('Formato de arquivo não suportado. Use CSV, XLS ou XLSX.');
+          setLoading(false);
+        }
+      };
+      reader.readAsText(selectedFile);
+    } catch (error) {
+      console.error('Error processing file or fetching existing transactions:', error);
+      showError('Erro ao processar arquivo ou carregar lançamentos existentes.');
+      setLoading(false);
+    }
   };
 
   const handleConfirmImport = async () => {
@@ -393,21 +408,15 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <TableBody>
                     {processedTransactions.map((tx) => (
                       <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
-                        <TableCell className="text-xs font-bold">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-sm">
-                          <div className="flex flex-col">
-                            <span>{tx.description}</span>
-                            {tx.status === 'duplicate' && (
-                              <span className="flex items-center gap-1 text-[9px] font-black text-orange-600 uppercase mt-1">
-                                <AlertTriangle className="w-3 h-3" /> Possível Duplicado (Já existe Data/Valor)
-                              </span>
-                            )}
-                          </div>
+                          {tx.description}
+                          {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Lançamento Duplicado</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
-                              <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
                               <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
                             </Select>
                             {tx.suggestedCategoryId === systemCategories.transferenciaId && (
@@ -418,7 +427,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className={cn("text-right font-black text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
+                        <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
                         <TableCell className="text-center">
                           <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
                             {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
@@ -443,8 +452,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         <div className="px-6 py-4 bg-background-light/50 border-t border-border-light flex justify-end gap-3">
           <Button variant="outline" onClick={handleRemoveFile}>Cancelar</Button>
           {uploadStep === 'upload' ? (
-            <Button onClick={handleProcessFile} disabled={!selectedFile || !selectedAccountId} className="bg-primary-new text-white font-bold">
-              <ArrowDown className="mr-2 rotate-180" /> Pré-visualizar
+            <Button onClick={handleProcessFile} disabled={!selectedFile || !selectedAccountId || loading} className="bg-primary-new text-white font-bold">
+              {loading ? <Loader2 className="animate-spin mr-2" /> : <ArrowDown className="mr-2 rotate-180" />} Pré-visualizar
             </Button>
           ) : (
             <Button onClick={handleConfirmImport} disabled={isImporting || summary.toImport === 0} className="bg-primary-new text-white font-bold">
