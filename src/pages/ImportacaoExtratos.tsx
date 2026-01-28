@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowDown, Check, Info, CloudUpload, ChevronRight, XCircle, Loader2, Lightbulb } from 'lucide-react';
+import { ArrowDown, Check, Info, CloudUpload, ChevronRight, XCircle, Loader2, Lightbulb, AlertTriangle } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,7 +44,7 @@ interface ProcessedTransaction extends ParsedTransaction {
   type: 'receita' | 'despesa';
   suggestedCategoryId: string | null;
   suggestedCategoryName: string | null;
-  status: 'new' | 'duplicate' | 'ignored';
+  status: 'new' | 'duplicate';
   ignore: boolean;
   isTransferCandidate: boolean;
   selectedLinkedAccountId: string | null;
@@ -80,9 +80,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
-
-  // Normalize description for comparison
-  const normalizeDesc = (desc: string) => desc.toLowerCase().replace(/\s+/g, ' ').trim();
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -183,15 +180,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const processTransactions = useCallback(async (parsed: ParsedTransaction[]) => {
     const processed: ProcessedTransaction[] = [];
+    
+    // Simplificando a chave de duplicados para focar apenas em Data e Valor (formato string fixo)
     const existingTransactionsSet = new Set<string>();
-
-    // Build exhaustive duplicate key set for selected account
     existingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
         const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
         const valueKey = Number(lan.lan_valor).toFixed(2);
-        const descKey = normalizeDesc(lan.lan_descricao || '');
-        existingTransactionsSet.add(`${dateKey}|${valueKey}|${descKey}`);
+        existingTransactionsSet.add(`${dateKey}|${valueKey}`);
       }
     });
 
@@ -199,11 +195,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const val = Number(tx.value);
       const dateKey = format(parseDateString(tx.date), 'yyyy-MM-dd');
       const valueKey = val.toFixed(2);
-      const descKey = normalizeDesc(tx.description);
       
-      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}|${descKey}`);
+      // Duplicado se a chave Date+Value existir
+      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}`);
+      
       let suggestedId: string | null = null;
-      const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descKey.includes(k));
+      const descLower = tx.description.toLowerCase();
+      const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descLower.includes(k));
 
       if (useAiClassification && !isDuplicate) {
         suggestedId = isTransfer ? systemCategories.transferenciaId : await classifyWithAI(tx.description, tx.value, categories);
@@ -218,7 +216,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         suggestedCategoryId: suggestedId,
         suggestedCategoryName: categories.find(c => c.cat_id === suggestedId)?.cat_nome || null,
         status: isDuplicate ? 'duplicate' : 'new',
-        ignore: isDuplicate,
+        ignore: isDuplicate, // Ignorado por padrão se for duplicado
         isTransferCandidate: isTransfer,
         selectedLinkedAccountId: null,
       });
@@ -303,6 +301,19 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     localStorage.removeItem(LOCAL_STORAGE_KEYS.processedTransactions);
   };
 
+  const uniqueCategories = useMemo(() => {
+    return categories.reduce((acc: Category[], current) => {
+      const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
+      if (idx === -1) return acc.concat([current]);
+      if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
+        const next = [...acc];
+        next[idx] = current;
+        return next;
+      }
+      return acc;
+    }, []);
+  }, [categories]);
+
   const summary = useMemo(() => ({
     toImport: processedTransactions.filter(tx => !tx.ignore).length,
     duplicates: processedTransactions.filter(tx => tx.status === 'duplicate').length,
@@ -353,7 +364,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </Label>
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 shrink-0 mt-0.5" size={20} />
-                  <div className="text-sm text-yellow-800"><p className="font-bold mb-1">Dica de Duplicados</p><p>Comparamos data, valor e descrição com os lançamentos já existentes nesta conta.</p></div>
+                  <div className="text-sm text-yellow-800"><p className="font-bold mb-1">Dica de Duplicados</p><p>Comparamos data e valor com os lançamentos já existentes nesta conta para evitar repetições.</p></div>
                 </div>
               </div>
               <div className="flex flex-col">
@@ -380,48 +391,41 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 <Table>
                   <TableHeader><TableRow className="bg-background-light"><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-center">Importar?</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {processedTransactions.map((tx) => {
-                      const uniqueCategoriesList = categories.reduce((acc: Category[], current) => {
-                        const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
-                        if (idx === -1) return acc.concat([current]);
-                        if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
-                          const next = [...acc];
-                          next[idx] = current;
-                          return next;
-                        }
-                        return acc;
-                      }, []);
-
-                      return (
-                        <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
-                          <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="text-sm">
-                            {tx.description}
-                            {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Lançamento Duplicado</span>}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                                <SelectContent className={selectContentStyles}>{uniqueCategoriesList.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                    {processedTransactions.map((tx) => (
+                      <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
+                        <TableCell className="text-xs font-bold">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col">
+                            <span>{tx.description}</span>
+                            {tx.status === 'duplicate' && (
+                              <span className="flex items-center gap-1 text-[9px] font-black text-orange-600 uppercase mt-1">
+                                <AlertTriangle className="w-3 h-3" /> Possível Duplicado (Já existe Data/Valor)
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
+                              <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                              <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {tx.suggestedCategoryId === systemCategories.transferenciaId && (
+                              <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
+                                <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
+                                <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
                               </Select>
-                              {tx.suggestedCategoryId === systemCategories.transferenciaId && (
-                                <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
-                                  <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
-                                  <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
-                                </Select>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
-                              {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className={cn("text-right font-black text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
+                            {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
