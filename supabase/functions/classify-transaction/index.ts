@@ -24,36 +24,31 @@ serve(async (req) => {
       });
     }
 
-    const categoryList = categories.map((cat: any) => `${cat.cat_nome} (ID: ${cat.cat_id}, Tipo: ${cat.cat_tipo})`).join('\n');
+    const categoryList = categories.map((cat: any) => `${cat.cat_nome} (ID: ${cat.cat_id})`).join('\n');
     const recentList = recentTransactions && recentTransactions.length > 0 
-      ? recentTransactions.map((t: any) => `- Data: ${t.lan_data}, Desc: ${t.lan_descricao}, Valor: ${t.lan_valor}`).join('\n')
+      ? recentTransactions.map((t: any) => `- ${t.lan_data}: ${t.lan_descricao} (${t.lan_valor})`).join('\n')
       : "Nenhum lançamento recente encontrado nesta conta.";
 
-    const prompt = `Você é um especialista em conciliação bancária.
-Analise o lançamento que está sendo importado:
+    const prompt = `Você é um assistente financeiro especializado em conciliação bancária.
+Analise o seguinte lançamento que está sendo importado:
 - Descrição: "${description}"
 - Valor: ${value}
 - Data: ${date}
 - Tipo: ${type}
 
-TAREFA 1 (CATEGORIA): Escolha a melhor categoria da lista abaixo. 
-IMPORTANTE: Se a descrição sugerir transferência entre contas (PIX para conta própria, transferência entre bancos do mesmo dono, etc), você DEVE usar a categoria 'Transferência entre Contas' ou similar que seja do tipo 'sistema'.
+TAREFA 1 (CATEGORIA): Sugira o melhor ID de categoria da lista abaixo. Se for transferência (PIX, TED), use 'Transferência entre Contas' se disponível.
 Categorias Disponíveis:
 ${categoryList}
 
-TAREFA 2 (DUPLICADO): Verifique se este lançamento já existe no sistema.
-CRITÉRIOS DE DUPLICIDADE:
-1. Mesmo Valor ABSOLUTO.
-2. Data idêntica ou com diferença de até 3 dias.
-3. Descrição similar (ex: "UBER TRIP" e "Uber *Trip").
+TAREFA 2 (DUPLICADO): Verifique se este lançamento já parece existir na lista de lançamentos recentes abaixo. Considere que a data pode variar em +/- 2 dias e a descrição pode ser levemente diferente.
 Lançamentos Recentes no Sistema:
 ${recentList}
 
-Responda APENAS um JSON:
+Responda APENAS um JSON no formato:
 {
-  "suggestedCategoryId": "id_da_categoria_selecionada",
+  "suggestedCategoryId": "id_ou_null",
   "isPossibleDuplicate": true_ou_false,
-  "reason": "Explicação curta do motivo do duplicado ou da categoria"
+  "reason": "breve justificativa se for duplicado"
 }`;
 
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {

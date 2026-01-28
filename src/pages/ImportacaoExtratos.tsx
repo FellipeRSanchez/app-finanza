@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { showSuccess, showError } from '@/utils/toast';
 import Papa from 'papaparse'; 
 import * as XLSX from 'xlsx'; 
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,7 @@ interface ProcessedTransaction extends ParsedTransaction {
   status: 'new' | 'duplicate';
   duplicateReason?: string;
   ignore: boolean;
+  isTransferCandidate: boolean;
   selectedLinkedAccountId: string | null;
 }
 
@@ -55,6 +56,7 @@ const LOCAL_STORAGE_KEYS = {
   selectedAccountId: 'import_selected_account_id',
   processedTransactions: 'import_processed_transactions',
   uploadStep: 'import_upload_step',
+  useAiClassification: 'import_use_ai_classification',
 };
 
 const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
@@ -109,7 +111,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
           supabase.from('contas').select('*').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('*').eq('cat_grupo', userData.usu_grupo),
-          supabase.from('lancamentos').select('*').eq('lan_grupo', userData.usu_grupo).order('lan_data', { ascending: false }).limit(300),
+          supabase.from('lancamentos').select('*').eq('lan_grupo', userData.usu_grupo).order('lan_data', { ascending: false }).limit(200),
         ]);
 
         setAccounts(accountsRes.data || []);
@@ -194,6 +196,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         status: isDuplicate ? 'duplicate' : 'new',
         duplicateReason: aiResult?.reason,
         ignore: isDuplicate,
+        isTransferCandidate: ['transferencia', 'ted', 'pix', 'doc'].some(k => tx.description.toLowerCase().includes(k)),
         selectedLinkedAccountId: null,
       });
     }
@@ -254,7 +257,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     try {
       const toProcess = processedTransactions.filter(tx => !tx.ignore);
       for (const tx of toProcess) {
-        // Se for categoria de transferência e houver conta vinculada selecionada
         if (tx.suggestedCategoryId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
           const sourceId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
           const destId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
@@ -294,6 +296,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-text-secondary-light text-sm mb-1">
+          <a className="hover:text-primary-new" href="#">Financeiro</a>
+          <ChevronRight className="w-4 h-4" />
+          <span className="text-text-main-light font-medium">Importação</span>
+        </div>
         <h1 className="text-3xl font-black tracking-tight text-text-main-light">Importação de Extratos</h1>
         <p className="text-text-secondary-light text-lg">IA detecta duplicados e sugere categorias automaticamente.</p>
       </div>
@@ -323,14 +330,21 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     </SelectContent>
                   </Select>
                 </Label>
+                <div className="p-4 bg-primary-new/5 border border-primary-new/10 rounded-xl flex gap-3">
+                  <Lightbulb className="text-primary-new shrink-0 mt-0.5" size={20} />
+                  <div className="text-sm text-text-main-light">
+                    <p className="font-bold mb-1">Dica de IA</p>
+                    <p>Ative a classificação inteligente para que o sistema identifique se o lançamento já foi importado anteriormente.</p>
+                  </div>
+                </div>
               </div>
               <div className="flex flex-col">
                 <span className="text-text-main-light text-sm font-bold mb-2 block">Arquivo do Extrato</span>
                 <Label htmlFor="file-upload" className="flex-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border-light bg-background-light/50 hover:bg-primary-new/5 hover:border-primary-new transition-all cursor-pointer group min-h-[180px]">
                   <div className="flex flex-col items-center p-4 text-center">
                     <CloudUpload className="text-primary-new mb-4" size={32} />
-                    <p className="text-sm font-medium">Clique para enviar</p>
-                    <p className="text-xs text-text-secondary-light">CSV ou XLS</p>
+                    <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
+                    <p className="text-xs text-text-secondary-light">CSV ou XLS (Data, Descrição, Valor)</p>
                   </div>
                   <Input id="file-upload" type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
                 </Label>
@@ -339,15 +353,26 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             </div>
           ) : (
             <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-primary-new/5 rounded-xl border border-primary-new/10">
+                <div className="flex items-center gap-3">
+                  <Lightbulb className="text-primary-new" />
+                  <div>
+                    <p className="text-sm font-bold">Classificação Inteligente Ativa</p>
+                    <p className="text-xs text-text-secondary-light">IA analisando categorias e duplicados.</p>
+                  </div>
+                </div>
+                <Switch checked={useAiClassification} onCheckedChange={setUseAiClassification} />
+              </div>
+
               <div className="overflow-x-auto rounded-xl border border-border-light">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-background-light">
                       <TableHead className="w-[120px]">Data</TableHead>
                       <TableHead>Descrição</TableHead>
-                      <TableHead className="w-[250px]">Categoria / Vínculo</TableHead>
+                      <TableHead className="w-[200px]">Categoria</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -356,27 +381,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                         <TableCell className="text-xs font-medium">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-sm">{tx.description}</TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-1.5">
+                          <div className="flex flex-col gap-1">
                             <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
                               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                              <SelectContent className={selectContentStyles}>
-                                {categories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}
-                              </SelectContent>
+                              <SelectContent className={selectContentStyles}>{categories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
                             </Select>
-                            
-                            {/* Mostrar seletor de conta vinculada se a categoria for Transferência */}
-                            {tx.suggestedCategoryId === systemCategories.transferenciaId && (
-                              <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
-                                <SelectTrigger className="h-8 text-[10px] bg-emerald-50 border-emerald-200 text-emerald-800 font-bold">
-                                  <SelectValue placeholder="Selecione conta destino/origem" />
-                                </SelectTrigger>
-                                <SelectContent className={selectContentStyles}>
-                                  {accounts.filter(a => a.con_id !== selectedAccountId).map(a => (
-                                    <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
@@ -388,7 +397,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                   {tx.status === 'duplicate' ? <AlertTriangle className="w-4 h-4 text-orange-500" /> : tx.ignore ? <XCircle className="w-4 h-4 text-red-500" /> : <Check className="w-4 h-4 text-emerald-500" />}
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent className="bg-black text-white p-2 text-xs rounded shadow-lg">{tx.duplicateReason || (tx.status === 'duplicate' ? "Lançamento similar encontrado no sistema." : "Clique para ignorar")}</TooltipContent>
+                              {tx.status === 'duplicate' && <TooltipContent><p>{tx.duplicateReason || "Provável duplicado detectado pela IA."}</p></TooltipContent>}
                             </Tooltip>
                           </TooltipProvider>
                         </TableCell>
@@ -405,7 +414,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           <Button variant="outline" onClick={handleRemoveFile}>Cancelar</Button>
           {uploadStep === 'upload' ? (
             <Button onClick={handleProcessFile} disabled={!selectedFile || !selectedAccountId || loading} className="bg-primary-new text-white font-bold">
-              {loading ? <Loader2 className="animate-spin mr-2" /> : <ArrowDown className="mr-2 rotate-180" />} Analisar Lançamentos
+              {loading ? <Loader2 className="animate-spin mr-2" /> : <ArrowDown className="mr-2 rotate-180" />} Analisar e Importar
             </Button>
           ) : (
             <Button onClick={handleConfirmImport} disabled={isImporting || processedTransactions.filter(t => !t.ignore).length === 0} className="bg-primary-new text-white font-bold">
