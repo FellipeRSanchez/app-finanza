@@ -21,7 +21,6 @@ interface Account {
   con_nome: string;
   con_tipo: string;
   con_limite: number;
-  created_at?: string;
 }
 
 interface Transaction {
@@ -67,7 +66,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       const { data, error } = await supabase
         .from('contas')
-        .select('con_id, con_nome, con_tipo, con_limite, created_at')
+        .select('con_id, con_nome, con_tipo, con_limite')
         .eq('con_grupo', userData.usu_grupo)
         .neq('con_tipo', 'cartao');
 
@@ -86,12 +85,18 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Obter a conta selecionada para saber o saldo base (con_limite)
-      const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
-      const baseBalance = Number(selectedAccount?.con_limite || 0);
+      // 1. Buscar detalhes da conta atualizada
+      const { data: accountData, error: accError } = await supabase
+        .from('contas')
+        .select('con_limite')
+        .eq('con_id', selectedAccountId)
+        .single();
 
-      // 2. Calcular a soma de TODOS os lançamentos ANTERIORES à data inicial
-      const { data: previousTransactions, error: pError } = await supabase
+      if (accError) throw accError;
+      const baseBalance = Number(accountData.con_limite || 0);
+
+      // 2. Calcular soma de tudo o que aconteceu ANTES da data inicial
+      const { data: previousData, error: pError } = await supabase
         .from('lancamentos')
         .select('lan_valor')
         .eq('lan_conta', selectedAccountId)
@@ -99,19 +104,19 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       if (pError) throw pError;
 
-      const previousSum = (previousTransactions || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
+      const previousSum = (previousData || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
       const calculatedInitial = baseBalance + previousSum;
-      
       setInitialBalance(calculatedInitial);
 
-      // 3. Buscar transações do período selecionado
+      // 3. Buscar transações do período
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
         .eq('lan_conta', selectedAccountId)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
-        .order('lan_data', { ascending: true });
+        .order('lan_data', { ascending: true })
+        .order('lan_id', { ascending: true }); // Ordenação secundária estável
 
       if (tError) throw tError;
       
@@ -132,17 +137,17 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId, startDate, endDate, accounts]);
+  }, [selectedAccountId, startDate, endDate]);
 
   useEffect(() => {
     if (user) fetchAccounts();
   }, [user, fetchAccounts]);
 
   useEffect(() => {
-    if (selectedAccountId && startDate && endDate && accounts.length > 0) {
+    if (selectedAccountId && startDate && endDate) {
       fetchReconciliationData();
     }
-  }, [selectedAccountId, startDate, endDate, fetchReconciliationData, accounts.length]);
+  }, [selectedAccountId, startDate, endDate, fetchReconciliationData]);
 
   const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
   const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
