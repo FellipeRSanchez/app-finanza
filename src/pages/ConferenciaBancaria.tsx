@@ -85,7 +85,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Buscar detalhes da conta atualizada
+      // 1. Obter o saldo de abertura (con_limite) da conta diretamente do banco
       const { data: accountData, error: accError } = await supabase
         .from('contas')
         .select('con_limite')
@@ -93,9 +93,10 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .single();
 
       if (accError) throw accError;
-      const baseBalance = Number(accountData.con_limite || 0);
+      const openingLimit = Number(accountData.con_limite || 0);
 
-      // 2. Calcular soma de tudo o que aconteceu ANTES da data inicial
+      // 2. Calcular a soma de TODOS os lançamentos anteriores à data inicial
+      // Usamos uma query que traz apenas o valor para somar no cliente (ou rpc se preferir, mas aqui faremos direto)
       const { data: previousData, error: pError } = await supabase
         .from('lancamentos')
         .select('lan_valor')
@@ -105,10 +106,11 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       if (pError) throw pError;
 
       const previousSum = (previousData || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
-      const calculatedInitial = baseBalance + previousSum;
-      setInitialBalance(calculatedInitial);
+      const calculatedOpeningBalance = openingLimit + previousSum;
+      
+      setInitialBalance(calculatedOpeningBalance);
 
-      // 3. Buscar transações do período
+      // 3. Buscar transações do período selecionado
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
@@ -116,11 +118,11 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
         .order('lan_data', { ascending: true })
-        .order('lan_id', { ascending: true }); // Ordenação secundária estável
+        .order('lan_id', { ascending: true }); // Ordenação estável para saldo acumulado
 
       if (tError) throw tError;
       
-      let runningBalance = calculatedInitial;
+      let runningBalance = calculatedOpeningBalance;
       const processedTransactions = (transactionsData || []).map((t: any) => {
         runningBalance += Number(t.lan_valor);
         return { 
