@@ -163,17 +163,34 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const type = value >= 0 ? 'receita' : 'despesa';
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
-      if (!token) return null;
+      
+      if (!token) {
+        console.warn("[classifyWithAI] No Supabase session token found. AI classification skipped.");
+        return null;
+      }
+
+      console.log("[classifyWithAI] Calling Edge Function for:", { description, type });
 
       const res = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ description, categories: availableCategories, type }),
       });
-      if (!res.ok) return null;
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("[classifyWithAI] Edge Function call failed:", res.status, errorData);
+        showError(`Erro na classificação por IA: ${errorData.error || res.statusText}`);
+        return null;
+      }
       const data = await res.json();
+      console.log("[classifyWithAI] AI suggested category ID:", data.suggestedCategoryId);
       return data.suggestedCategoryId;
-    } catch { return null; }
+    } catch (error) {
+      console.error("[classifyWithAI] Error during AI classification:", error);
+      showError('Erro inesperado na classificação por IA.');
+      return null;
+    }
   }, []);
 
   const processTransactions = useCallback(async (parsed: ParsedTransaction[], currentExistingLancamentos: any[]) => {
@@ -408,18 +425,24 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <TableBody>
                     {processedTransactions.map((tx) => (
                       <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
-                        <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-xs font-bold">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-sm">
-                          {tx.description}
-                          {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Lançamento Duplicado</span>}
+                          <div className="flex flex-col">
+                            <span>{tx.description}</span>
+                            {tx.status === 'duplicate' && (
+                              <span className="flex items-center gap-1 text-[9px] font-black text-orange-600 uppercase mt-1">
+                                <AlertTriangle className="w-3 h-3" /> Possível Duplicado (Já existe Data/Valor)
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
-                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                              <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Categoria" /></SelectTrigger>
                               <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
                             </Select>
-                            {tx.suggestedCategoryId === systemCategories.transferenciaId && (
+                            {tx.isTransferCandidate && ( // Use isTransferCandidate to show linked account select
                               <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
                                 <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
                                 <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
@@ -427,7 +450,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
+                        <TableCell className={cn("text-right font-black text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
                         <TableCell className="text-center">
                           <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
                             {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
