@@ -1,6 +1,5 @@
-/// <reference lib="deno.ns" />
+// @ts-ignore: Deno standard library
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,35 +12,44 @@ serve(async (req) => {
   }
 
   try {
-    const { description, categories, type } = await req.json();
-    console.log("[classify-transaction] Received request:", { description, type });
+    const { description, value, date, categories, type, recentTransactions } = await req.json();
+    console.log("[classify-transaction] Analisando:", { description, value, date });
 
-    if (!description || !categories || !Array.isArray(categories) || !type) {
-      return new Response(JSON.stringify({ error: 'Missing description, categories, or type' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
+    // @ts-ignore: Deno global
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
-      console.error("[classify-transaction] OPENAI_API_KEY not set");
       return new Response(JSON.stringify({ error: 'OpenAI API key not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const categoryList = categories.map((cat: any) => `${cat.cat_nome} (ID: ${cat.cat_id}, Tipo: ${cat.cat_tipo})`).join('\n');
+    const categoryList = categories.map((cat: any) => `${cat.cat_nome} (ID: ${cat.cat_id})`).join('\n');
+    const recentList = recentTransactions && recentTransactions.length > 0 
+      ? recentTransactions.map((t: any) => `- ${t.lan_data}: ${t.lan_descricao} (${t.lan_valor})`).join('\n')
+      : "Nenhum lançamento recente encontrado nesta conta.";
 
-    const prompt = `Given the transaction description "${description}" and its type "${type}", suggest the most appropriate category ID from the following list. Prioritize non-system categories if a clear match is found. If it's a transfer (PIX, TED, DOC) and no specific non-system category is clearly implied, use the 'Transferência entre Contas' category.
+    const prompt = `Você é um assistente financeiro especializado em conciliação bancária.
+Analise o seguinte lançamento que está sendo importado:
+- Descrição: "${description}"
+- Valor: ${value}
+- Data: ${date}
+- Tipo: ${type}
 
-Available Categories:
+TAREFA 1 (CATEGORIA): Sugira o melhor ID de categoria da lista abaixo. Se for transferência (PIX, TED), use 'Transferência entre Contas' se disponível.
+Categorias Disponíveis:
 ${categoryList}
 
-Please respond with only the category ID. If no suitable category is found, respond with "null".`;
+TAREFA 2 (DUPLICADO): Verifique se este lançamento já parece existir na lista de lançamentos recentes abaixo. Considere que a data pode variar em +/- 2 dias e a descrição pode ser levemente diferente.
+Lançamentos Recentes no Sistema:
+${recentList}
 
-    console.log("[classify-transaction] Sending prompt to OpenAI:", prompt);
+Responda APENAS um JSON no formato:
+{
+  "suggestedCategoryId": "id_ou_null",
+  "isPossibleDuplicate": true_ou_false,
+  "reason": "breve justificativa se for duplicado"
+}`;
 
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -50,37 +58,24 @@ Please respond with only the category ID. If no suitable category is found, resp
         'Authorization': `Bearer ${openaiApiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo", // Or gpt-4o if available and preferred
+        model: "gpt-3.5-turbo",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 50,
-        temperature: 0, // Keep it deterministic for classification
+        response_format: { type: "json_object" },
+        temperature: 0,
       }),
     });
 
-    if (!openaiResponse.ok) {
-      const errorData = await openaiResponse.json();
-      console.error("[classify-transaction] OpenAI API error:", errorData);
-      return new Response(JSON.stringify({ error: 'OpenAI API call failed', details: errorData }), {
-        status: openaiResponse.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const data = await openaiResponse.json();
+    const result = JSON.parse(data.choices[0].message.content);
 
-    const openaiData = await openaiResponse.json();
-    const suggestedId = openaiData.choices[0]?.message?.content?.trim();
-
-    console.log("[classify-transaction] OpenAI suggested ID:", suggestedId);
-
-    // Validate if the suggested ID is actually in the provided categories
-    const validCategory = categories.find((cat: any) => cat.cat_id === suggestedId);
-    const finalSuggestedId = validCategory ? suggestedId : null;
-
-    return new Response(JSON.stringify({ suggestedCategoryId: finalSuggestedId }), {
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error("[classify-transaction] Error processing request:", error);
+    // @ts-ignore
+    console.error("[classify-transaction] Error:", error.message);
+    // @ts-ignore
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
