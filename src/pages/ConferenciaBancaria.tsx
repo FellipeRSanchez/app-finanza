@@ -96,9 +96,9 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .limit(1)
         .maybeSingle();
 
-      let initial = initialBalanceData?.saldo_acumulado || 0;
+      let initial = initialBalanceData?.saldo_acumulado ? Number(initialBalanceData.saldo_acumulado) : 0;
       
-      // Se não houver histórico anterior, tenta usar o saldo inicial da conta (con_limite)
+      // Se não houver histórico anterior na view, tenta usar o saldo inicial da conta (con_limite)
       if (!initialBalanceData) {
         const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
         if (selectedAccount) {
@@ -108,14 +108,14 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       setInitialBalance(initial);
 
       // 2. Buscar transações do período
+      // Removido 'created_at' do order by pois a coluna não existe na tabela lancamentos
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
         .eq('lan_conta', selectedAccountId)
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
-        .order('lan_data', { ascending: true })
-        .order('created_at', { ascending: true }); // Ordenação secundária para estabilidade
+        .order('lan_data', { ascending: true });
 
       if (tError) throw tError;
       
@@ -130,7 +130,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       });
       setTransactions(processedTransactions);
 
-      console.log("[Conferencia] Saldo Inicial:", initial);
+      console.log("[Conferencia] Saldo Inicial Calculado:", initial);
       console.log("[Conferencia] Saldo Final Calculado:", runningBalance);
 
     } catch (error) {
