@@ -357,12 +357,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const sName = accounts.find(a => a.con_id === sourceId)?.con_nome;
           const dName = accounts.find(a => a.con_id === destId)?.con_nome;
 
-          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dName}`, lan_valor: -val, lan_categoria: systemCategories.transferenciaId, lan_conta: sourceId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sName}`, lan_valor: val, lan_categoria: systemCategories.transferenciaId, lan_conta: destId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: val, tra_conta_origem: sourceId, tra_conta_destino: destId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: true }).select().single();
+          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dName}`, lan_valor: -val, lan_categoria: systemCategories.transferenciaId, lan_conta: sourceId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sName}`, lan_valor: val, lan_categoria: systemCategories.transferenciaId, lan_conta: destId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: val, tra_conta_origem: sourceId, tra_conta_destino: destId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: false }).select().single();
           await supabase.from('lancamentos').update({ lan_transferencia: nT.tra_id }).in('lan_id', [lO.lan_id, lD.lan_id]);
         } else {
-          await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: true, lan_importado: true });
+          await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: false, lan_importado: true });
         }
       }
       showSuccess('Importação concluída!');
@@ -404,6 +404,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const selectContentStyles = "bg-white dark:bg-[#1e1629] border border-border-light dark:border-[#3a3045] shadow-lg rounded-xl z-[100]";
 
+  const selectedAccountName = useMemo(() => {
+    return accounts.find(acc => acc.con_id === selectedAccountId)?.con_nome;
+  }, [accounts, selectedAccountId]);
+
   if (loading && uploadStep === 'upload') {
     return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   }
@@ -416,7 +420,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           <ChevronRight className="w-4 h-4" />
           <span className="text-text-main-light font-medium">Importação</span>
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-text-main-light">Importação de Extratos</h1>
+        <h1 className="text-3xl font-black tracking-tight text-text-main-light">
+          Importação de Extratos {selectedAccountName && <span className="text-primary-new">({selectedAccountName})</span>}
+        </h1>
         <p className="text-text-secondary-light text-lg">Sincronize seus arquivos OFX, CSV ou XLS automaticamente.</p>
       </div>
 
