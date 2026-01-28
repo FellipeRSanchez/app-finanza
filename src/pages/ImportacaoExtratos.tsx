@@ -50,11 +50,14 @@ interface ProcessedTransaction extends ParsedTransaction {
   selectedLinkedAccountId: string | null;
 }
 
+// Constantes de persistência movidas para fora do componente para evitar recriação e re-execução de efeitos
 const LOCAL_STORAGE_KEYS = {
   selectedAccountId: 'import_selected_account_id',
   processedTransactions: 'import_processed_transactions',
   uploadStep: 'import_upload_step',
   useAiClassification: 'import_use_ai_classification',
+  lastSelectedFileName: 'import_last_selected_file_name',
+  lastSelectedFileSize: 'import_last_selected_file_size',
 };
 
 const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
@@ -63,6 +66,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [uploadStep, setUploadStep] = useState<'upload' | 'preview'>('upload');
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -75,14 +79,20 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const [useAiClassification, setUseAiClassification] = useState(true);
   const [systemCategories, setSystemCategories] = useState({ transferenciaId: null as string | null });
 
+  const [lastSelectedFileName, setLastSelectedFileName] = useState<string | null>(null);
+  const [lastSelectedFileSize, setLastSelectedFileSize] = useState<number | null>(null);
+
   // Helper to format currency
   const formatCurrency = useCallback((value: number) => {
     if (hideValues) return '••••••';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   }, [hideValues]);
 
-  // Normalize description for comparison
-  const normalizeDesc = (desc: string) => desc.toLowerCase().replace(/\s+/g, ' ').trim();
+  const clearPersistedState = useCallback(() => {
+    Object.values(LOCAL_STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+    setLastSelectedFileName(null);
+    setLastSelectedFileSize(null);
+  }, []);
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -90,38 +100,52 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const savedAccountId = localStorage.getItem(LOCAL_STORAGE_KEYS.selectedAccountId);
       const savedTransactions = localStorage.getItem(LOCAL_STORAGE_KEYS.processedTransactions);
       const savedStep = localStorage.getItem(LOCAL_STORAGE_KEYS.uploadStep);
-      const savedAi = localStorage.getItem(LOCAL_STORAGE_KEYS.useAiClassification);
+      const savedAiClassification = localStorage.getItem(LOCAL_STORAGE_KEYS.useAiClassification);
+      const savedFileName = localStorage.getItem(LOCAL_STORAGE_KEYS.lastSelectedFileName);
+      const savedFileSize = localStorage.getItem(LOCAL_STORAGE_KEYS.lastSelectedFileSize);
 
       if (savedAccountId) setSelectedAccountId(savedAccountId);
       if (savedTransactions) setProcessedTransactions(JSON.parse(savedTransactions));
       if (savedStep) setUploadStep(savedStep as 'upload' | 'preview');
-      if (savedAi) setUseAiClassification(savedAi === 'true');
+      if (savedAiClassification) setUseAiClassification(savedAiClassification === 'true');
+      if (savedFileName) setLastSelectedFileName(savedFileName);
+      if (savedFileSize) setLastSelectedFileSize(Number(savedFileSize));
     } catch (error) {
-      console.error('Storage error:', error);
+      console.error('Failed to load state from localStorage:', error);
+      clearPersistedState();
     }
-  }, []);
+  }, [clearPersistedState]);
 
-  // Save state
+  // Save state to localStorage
   useEffect(() => {
     if (selectedAccountId) localStorage.setItem(LOCAL_STORAGE_KEYS.selectedAccountId, selectedAccountId);
-    if (processedTransactions.length > 0) localStorage.setItem(LOCAL_STORAGE_KEYS.processedTransactions, JSON.stringify(processedTransactions));
+    if (processedTransactions.length > 0) {
+      localStorage.setItem(LOCAL_STORAGE_KEYS.processedTransactions, JSON.stringify(processedTransactions));
+    }
     localStorage.setItem(LOCAL_STORAGE_KEYS.uploadStep, uploadStep);
     localStorage.setItem(LOCAL_STORAGE_KEYS.useAiClassification, String(useAiClassification));
-  }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification]);
+    if (lastSelectedFileName) localStorage.setItem(LOCAL_STORAGE_KEYS.lastSelectedFileName, lastSelectedFileName);
+    if (lastSelectedFileSize) localStorage.setItem(LOCAL_STORAGE_KEYS.lastSelectedFileSize, String(lastSelectedFileSize));
+  }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification, lastSelectedFileName, lastSelectedFileSize]);
 
   // Fetch initial data
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        const { data: userData } = await supabase.from('usuarios').select('usu_grupo').eq('usu_id', user?.id).single();
+        const { data: userData } = await supabase
+          .from('usuarios')
+          .select('usu_grupo')
+          .eq('usu_id', user?.id)
+          .single();
+
         if (!userData?.usu_grupo) return;
         setGrupoId(userData.usu_grupo);
 
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
           supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
-          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_conta').eq('lan_grupo', userData.usu_grupo),
+          supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_categoria, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
 
         setAccounts(accountsRes.data || []);
@@ -129,179 +153,247 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         setExistingLancamentos(lancamentosRes.data || []);
 
         const transferenciaCat = categoriesRes.data?.find((cat: any) => 
-          cat.cat_nome.toLowerCase().includes('transferência') && cat.cat_tipo === 'sistema'
+          (cat.cat_nome.toLowerCase().includes('transferência') || cat.cat_nome.toLowerCase().includes('transferencia')) 
+          && cat.cat_tipo === 'sistema'
         );
+        
         setSystemCategories({ transferenciaId: transferenciaCat?.cat_id || null });
 
-        if (!selectedAccountId && accountsRes.data?.[0]) setSelectedAccountId(accountsRes.data[0].con_id);
+        if (!selectedAccountId && accountsRes.data && accountsRes.data.length > 0) {
+          setSelectedAccountId(accountsRes.data[0].con_id);
+        }
       } catch (error) {
-        console.error(error);
+        console.error('Error fetching initial data:', error);
       } finally {
         setLoading(false);
       }
     };
+
     if (user) fetchInitialData();
-  }, [user]);
+  }, [user, selectedAccountId]);
 
   const cleanAndParseFloat = (value: any): number => {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
-      const cleaned = value.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
-      return parseFloat(cleaned) || 0;
+      const cleanedValue = value.replace(/\./g, '').replace(',', '.');
+      return parseFloat(cleanedValue);
     }
     return 0;
   };
 
   const parseDateString = (dateStr: string): Date => {
     if (!dateStr) return new Date();
-    const clean = dateStr.trim();
-    if (clean.match(/^\d{4}-\d{2}-\d{2}$/)) return parseISO(clean);
-    if (clean.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-      const [d, m, y] = clean.split('/').map(Number);
-      return new Date(y, m - 1, d);
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return parseISO(dateStr);
+    if (dateStr.match(/^\d{8}$/)) {
+      return new Date(parseInt(dateStr.substring(0, 4)), parseInt(dateStr.substring(4, 6)) - 1, parseInt(dateStr.substring(6, 8)));
+    }
+    if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      const [day, month, year] = dateStr.split('/').map(Number);
+      return new Date(year, month - 1, day);
     }
     return new Date();
   };
 
-  const classifyWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
+  const extractPersonName = (description: string): string | null => {
+    const lowerDescription = description.toLowerCase();
+    const patterns = [
+      /pix (recebido|enviado) para (.*?)(?:\s|$)/,
+      /pix (recebido|enviado) de (.*?)(?:\s|$)/,
+      /ted (para|de) (.*?)(?:\s|$)/,
+      /transferência (para|de) (.*?)(?:\s|$)/,
+      /transferencia (para|de) (.*?)(?:\s|$)/,
+    ];
+    for (const pattern of patterns) {
+      const match = lowerDescription.match(pattern);
+      if (match && match[2]) return match[2].split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
+    return null;
+  };
+
+  const classifyTransactionWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
     try {
       const type = value >= 0 ? 'receita' : 'despesa';
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      if (!token) return null;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) return null;
 
-      const res = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
+      const response = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ description, categories: availableCategories, type }),
       });
-      if (!res.ok) return null;
-      const data = await res.json();
+
+      if (!response.ok) return null;
+      const data = await response.json();
       return data.suggestedCategoryId;
-    } catch { return null; }
+    } catch (error) {
+      return null;
+    }
   }, []);
 
   const processTransactions = useCallback(async (parsed: ParsedTransaction[]) => {
     const processed: ProcessedTransaction[] = [];
+    const existingDescriptionsMap = new Map<string, string>();
     const existingTransactionsSet = new Set<string>();
+    const personCategoryMap = new Map<string, { categoryId: string, date: Date }>();
 
-    // Build exhaustive duplicate key set for selected account
+    // Filtrar lançamentos existentes APENAS para a conta selecionada para detecção de duplicados precisa
     existingLancamentos.forEach(lan => {
       if (lan.lan_conta === selectedAccountId) {
-        const dateKey = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-        const valueKey = Number(lan.lan_valor).toFixed(2);
-        const descKey = normalizeDesc(lan.lan_descricao || '');
-        existingTransactionsSet.add(`${dateKey}|${valueKey}|${descKey}`);
+        const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
+        // Usar toFixed(2) para garantir que a comparação numérica não falhe por precisão de string
+        const duplicateKey = `${formattedExistingDate}-${Number(lan.lan_valor).toFixed(2)}`;
+        existingTransactionsSet.add(duplicateKey);
+      }
+      
+      if (lan.lan_descricao) existingDescriptionsMap.set(lan.lan_descricao.toLowerCase(), lan.lan_categoria);
+      const personName = extractPersonName(lan.lan_descricao || '');
+      if (personName) {
+        const lanDate = parseISO(lan.lan_data);
+        const lanCategory = categories.find(c => c.cat_id === lan.lan_categoria);
+        if (lanCategory && lanCategory.cat_tipo !== 'sistema') {
+          const currentEntry = personCategoryMap.get(personName);
+          if (!currentEntry || lanDate > currentEntry.date) personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
+        }
       }
     });
 
     for (const tx of parsed) {
-      const val = Number(tx.value);
-      const dateKey = format(parseDateString(tx.date), 'yyyy-MM-dd');
-      const valueKey = val.toFixed(2);
-      const descKey = normalizeDesc(tx.description);
+      const value = Number(tx.value);
+      const formattedDate = format(parseDateString(tx.date), 'yyyy-MM-dd');
       
-      const isDuplicate = existingTransactionsSet.has(`${dateKey}|${valueKey}|${descKey}`);
-      let suggestedId: string | null = null;
-      const isTransfer = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => descKey.includes(k));
+      // Checar duplicidade com formatação numérica idêntica à do Set
+      const checkKey = `${formattedDate}-${value.toFixed(2)}`;
+      let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
+      
+      let suggestedCategoryId: string | null = null;
+      let isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => tx.description.toLowerCase().includes(k));
 
-      if (useAiClassification && !isDuplicate) {
-        suggestedId = isTransfer ? systemCategories.transferenciaId : await classifyWithAI(tx.description, tx.value, categories);
+      if (useAiClassification && status === 'new') {
+        if (isTransferCandidate) {
+          const personName = extractPersonName(tx.description);
+          suggestedCategoryId = (personName && personCategoryMap.get(personName)?.categoryId) || systemCategories.transferenciaId;
+        } else {
+          suggestedCategoryId = await classifyTransactionWithAI(tx.description, tx.value, categories) || existingDescriptionsMap.get(tx.description.toLowerCase()) || null;
+        }
       }
 
       processed.push({
         ...tx,
-        id: Math.random().toString(36).substring(7),
-        date: dateKey,
-        value: val,
-        type: val >= 0 ? 'receita' : 'despesa',
-        suggestedCategoryId: suggestedId,
-        suggestedCategoryName: categories.find(c => c.cat_id === suggestedId)?.cat_nome || null,
-        status: isDuplicate ? 'duplicate' : 'new',
-        ignore: isDuplicate,
-        isTransferCandidate: isTransfer,
+        id: Math.random().toString(36).substring(2, 11),
+        date: formattedDate,
+        value,
+        type: value >= 0 ? 'receita' : 'despesa',
+        suggestedCategoryId,
+        suggestedCategoryName: categories.find(c => c.cat_id === suggestedCategoryId)?.cat_nome || null,
+        status,
+        ignore: status === 'duplicate',
+        isTransferCandidate,
         selectedLinkedAccountId: null,
       });
     }
     setProcessedTransactions(processed);
     setUploadStep('preview');
-  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyWithAI, selectedAccountId]);
+  }, [existingLancamentos, categories, useAiClassification, systemCategories.transferenciaId, classifyTransactionWithAI, selectedAccountId]);
 
   const handleProcessFile = async () => {
     if (!selectedFile || !selectedAccountId) return;
     setLoading(true);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      let parsed: ParsedTransaction[] = [];
-      if (selectedFile.name.endsWith('.csv')) {
-        Papa.parse(text, {
-          header: false,
-          skipEmptyLines: true,
-          complete: async (results) => {
-            parsed = results.data.map((row: any, i: number) => ({
-              id: `t-${i}`,
-              date: String(row[0] || ''),
-              description: String(row[1] || ''),
-              value: cleanAndParseFloat(row[2]),
-              originalRow: row,
-            })).filter((r: any) => r.date && r.description && r.date.length > 5);
-            await processTransactions(parsed);
-            setLoading(false);
-          }
-        });
-      } else {
-        try {
-          const wb = XLSX.read(text, { type: 'string' });
-          const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-          parsed = data.slice(1).map((row: any, i: number) => ({
-            id: `t-${i}`,
-            date: String(row[0] || ''),
-            description: String(row[1] || ''),
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const text = e.target?.result as string;
+        let parsed: ParsedTransaction[] = [];
+        if (selectedFile.name.endsWith('.csv')) {
+          Papa.parse(text, {
+            complete: async (results) => {
+              parsed = results.data.map((row: any, i: number) => ({
+                id: `temp-${i}`,
+                date: String(row[0]),
+                description: String(row[1]),
+                value: cleanAndParseFloat(row[2]),
+                originalRow: row,
+              })).filter((r: any) => r.date && r.description);
+              await processTransactions(parsed);
+              setLoading(false);
+            }
+          });
+        } else if (selectedFile.name.endsWith('.xls') || selectedFile.name.endsWith('.xlsx')) {
+          const workbook = XLSX.read(text, { type: 'string' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const dataRows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          parsed = dataRows.slice(1).map((row: any, i: number) => ({
+            id: `temp-${i}`,
+            date: String(row[0]),
+            description: String(row[1]),
             value: cleanAndParseFloat(row[2]),
             originalRow: row,
           })).filter((r: any) => r.date && r.description);
           await processTransactions(parsed);
-        } catch { showError('Erro ao ler Excel.'); }
-        setLoading(false);
-      }
-    };
-    reader.readAsText(selectedFile);
+          setLoading(false);
+        }
+      };
+      reader.readAsText(selectedFile);
+    } catch (error) {
+      setLoading(false);
+      showError('Erro ao processar arquivo.');
+    }
   };
 
   const handleConfirmImport = async () => {
     if (!grupoId || !selectedAccountId) return;
     setIsImporting(true);
     const toProcess = processedTransactions.filter(tx => !tx.ignore);
+    
     try {
       for (const tx of toProcess) {
         if (tx.suggestedCategoryId === systemCategories.transferenciaId && tx.selectedLinkedAccountId) {
-          const sId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
-          const dId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
-          const v = Math.abs(tx.value);
-          const sN = accounts.find(a => a.con_id === sId)?.con_nome;
-          const dN = accounts.find(a => a.con_id === dId)?.con_nome;
+          const sourceId = tx.value < 0 ? selectedAccountId : tx.selectedLinkedAccountId;
+          const destId = tx.value < 0 ? tx.selectedLinkedAccountId : selectedAccountId;
+          const val = Math.abs(tx.value);
+          const sName = accounts.find(a => a.con_id === sourceId)?.con_nome;
+          const dName = accounts.find(a => a.con_id === destId)?.con_nome;
 
-          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dN}`, lan_valor: -v, lan_categoria: systemCategories.transferenciaId, lan_conta: sId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sN}`, lan_valor: v, lan_categoria: systemCategories.transferenciaId, lan_conta: dId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: v, tra_conta_origem: sId, tra_conta_destino: dId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: true }).select().single();
+          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dName}`, lan_valor: -val, lan_categoria: systemCategories.transferenciaId, lan_conta: sourceId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sName}`, lan_valor: val, lan_categoria: systemCategories.transferenciaId, lan_conta: destId, lan_conciliado: true, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: val, tra_conta_origem: sourceId, tra_conta_destino: destId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: true }).select().single();
           await supabase.from('lancamentos').update({ lan_transferencia: nT.tra_id }).in('lan_id', [lO.lan_id, lD.lan_id]);
         } else {
           await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: true, lan_importado: true });
         }
       }
       showSuccess('Importação concluída!');
-      localStorage.removeItem(LOCAL_STORAGE_KEYS.processedTransactions);
+      clearPersistedState();
       navigate('/lancamentos', { state: { refresh: true } });
-    } catch { showError('Erro na importação.'); } finally { setIsImporting(false); }
+    } catch (error) {
+      showError('Erro na importação.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
     setProcessedTransactions([]);
     setUploadStep('upload');
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.processedTransactions);
+    clearPersistedState();
   };
+
+  const uniqueCategories = useMemo(() => {
+    return categories.reduce((acc: Category[], current) => {
+      const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
+      if (idx === -1) return acc.concat([current]);
+      if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
+        const next = [...acc];
+        next[idx] = current;
+        return next;
+      }
+      return acc;
+    }, []);
+  }, [categories]);
 
   const summary = useMemo(() => ({
     toImport: processedTransactions.filter(tx => !tx.ignore).length,
@@ -312,7 +404,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const selectContentStyles = "bg-white dark:bg-[#1e1629] border border-border-light dark:border-[#3a3045] shadow-lg rounded-xl z-[100]";
 
-  if (loading && uploadStep === 'upload') return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  if (loading && uploadStep === 'upload') {
+    return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -323,7 +417,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           <span className="text-text-main-light font-medium">Importação</span>
         </div>
         <h1 className="text-3xl font-black tracking-tight text-text-main-light">Importação de Extratos</h1>
-        <p className="text-text-secondary-light text-lg">Sincronize arquivos bancários com detecção de duplicados.</p>
+        <p className="text-text-secondary-light text-lg">Sincronize seus arquivos OFX, CSV ou XLS automaticamente.</p>
       </div>
 
       <Card className="bg-card-light rounded-2xl shadow-soft border border-border-light overflow-hidden">
@@ -353,17 +447,26 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                 </Label>
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3">
                   <Info className="text-yellow-600 shrink-0 mt-0.5" size={20} />
-                  <div className="text-sm text-yellow-800"><p className="font-bold mb-1">Dica de Duplicados</p><p>Comparamos data, valor e descrição com os lançamentos já existentes nesta conta.</p></div>
+                  <div className="text-sm text-yellow-800">
+                    <p className="font-bold mb-1">Atenção ao formato</p>
+                    <p>CSV padrão: Coluna 1 (Data), Coluna 2 (Descrição), Coluna 3 (Valor).</p>
+                  </div>
                 </div>
               </div>
               <div className="flex flex-col">
                 <span className="text-text-main-light text-sm font-bold mb-2 block">Arquivo do Extrato</span>
                 <Label htmlFor="file-upload" className="flex-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border-light bg-background-light/50 hover:bg-primary-new/5 hover:border-primary-new transition-all cursor-pointer group min-h-[180px]">
-                  <CloudUpload className="text-primary-new mb-4" size={32} />
-                  <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
-                  <Input id="file-upload" type="file" className="hidden" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+                  <div className="flex flex-col items-center p-4 text-center">
+                    <CloudUpload className="text-primary-new mb-4" size={32} />
+                    <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
+                    <p className="text-xs text-text-secondary-light">OFX, CSV ou XLS (max. 10MB)</p>
+                  </div>
+                  <Input id="file-upload" type="file" className="hidden" onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) { setSelectedFile(f); setLastSelectedFileName(f.name); }
+                  }} />
                 </Label>
-                {selectedFile && <div className="mt-2 text-xs flex items-center justify-between"><span>{selectedFile.name}</span><Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)}><XCircle className="w-4 h-4 text-red-500" /></Button></div>}
+                {selectedFile && <div className="mt-2 text-xs flex items-center justify-between"><span>{selectedFile.name}</span><Button variant="ghost" size="icon" onClick={handleRemoveFile}><XCircle className="w-4 h-4 text-red-500" /></Button></div>}
               </div>
             </div>
           ) : (
@@ -371,57 +474,52 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
               <div className="flex items-center justify-between p-4 bg-primary-new/5 rounded-xl border border-primary-new/10">
                 <div className="flex items-center gap-3">
                   <Lightbulb className="text-primary-new" />
-                  <div><p className="text-sm font-bold">Inteligência Artificial</p><p className="text-xs text-text-secondary-light">Sugerir categorias automaticamente.</p></div>
+                  <div>
+                    <p className="text-sm font-bold">Classificação Inteligente</p>
+                    <p className="text-xs text-text-secondary-light">Categorização baseada no seu histórico.</p>
+                  </div>
                 </div>
                 <Switch checked={useAiClassification} onCheckedChange={setUseAiClassification} />
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-border-light">
                 <Table>
-                  <TableHeader><TableRow className="bg-background-light"><TableHead>Data</TableHead><TableHead>Descrição</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-center">Importar?</TableHead></TableRow></TableHeader>
+                  <TableHeader>
+                    <TableRow className="bg-background-light">
+                      <TableHead className="w-[120px]">Data</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="w-[200px]">Categoria</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-                    {processedTransactions.map((tx) => {
-                      const uniqueCategoriesList = categories.reduce((acc: Category[], current) => {
-                        const idx = acc.findIndex(item => item.cat_nome.toLowerCase() === current.cat_nome.toLowerCase());
-                        if (idx === -1) return acc.concat([current]);
-                        if (current.cat_tipo === 'sistema' && acc[idx].cat_tipo !== 'sistema') {
-                          const next = [...acc];
-                          next[idx] = current;
-                          return next;
-                        }
-                        return acc;
-                      }, []);
-
-                      return (
-                        <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50/50")}>
-                          <TableCell className="text-xs">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
-                          <TableCell className="text-sm">
-                            {tx.description}
-                            {tx.status === 'duplicate' && <span className="block text-[9px] font-bold text-orange-600 uppercase mt-1">Lançamento Duplicado</span>}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
-                                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
-                                <SelectContent className={selectContentStyles}>{uniqueCategoriesList.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                    {processedTransactions.map((tx) => (
+                      <TableRow key={tx.id} className={cn(tx.ignore && "opacity-50", tx.status === 'duplicate' && "bg-orange-50")}>
+                        <TableCell className="text-xs font-medium">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-sm">{tx.description}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Select value={tx.suggestedCategoryId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, suggestedCategoryId: val } : t))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
+                              <SelectContent className={selectContentStyles}>{uniqueCategories.map(c => <SelectItem key={c.cat_id} value={c.cat_id}>{c.cat_nome}</SelectItem>)}</SelectContent>
+                            </Select>
+                            {tx.suggestedCategoryId === systemCategories.transferenciaId && (
+                              <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
+                                <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
+                                <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
                               </Select>
-                              {tx.suggestedCategoryId === systemCategories.transferenciaId && (
-                                <Select value={tx.selectedLinkedAccountId || ''} onValueChange={(val) => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, selectedLinkedAccountId: val } : t))}>
-                                  <SelectTrigger className="h-8 text-xs bg-emerald-50 border-emerald-100 text-emerald-700 font-bold"><SelectValue placeholder="Conta Vinculada" /></SelectTrigger>
-                                  <SelectContent className={selectContentStyles}>{accounts.filter(a => a.con_id !== selectedAccountId).map(a => <SelectItem key={a.con_id} value={a.con_id}>{a.con_nome}</SelectItem>)}</SelectContent>
-                                </Select>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
-                              {tx.ignore ? <XCircle className="w-5 h-5 text-red-500" /> : <Check className="w-5 h-5 text-emerald-500" />}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className={cn("text-right font-bold text-sm", tx.value >= 0 ? "text-emerald-600" : "text-rose-600")}>{formatCurrency(tx.value)}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" onClick={() => setProcessedTransactions(prev => prev.map(t => t.id === tx.id ? { ...t, ignore: !t.ignore } : t))}>
+                            {tx.ignore ? <XCircle className="w-4 h-4 text-red-500" /> : <Check className="w-4 h-4 text-emerald-500" />}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -439,8 +537,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         <div className="px-6 py-4 bg-background-light/50 border-t border-border-light flex justify-end gap-3">
           <Button variant="outline" onClick={handleRemoveFile}>Cancelar</Button>
           {uploadStep === 'upload' ? (
-            <Button onClick={handleProcessFile} disabled={!selectedFile || !selectedAccountId} className="bg-primary-new text-white font-bold">
-              <ArrowDown className="mr-2 rotate-180" /> Pré-visualizar
+            <Button onClick={handleProcessFile} disabled={!selectedFile || !selectedAccountId || loading} className="bg-primary-new text-white font-bold">
+              {loading ? <Loader2 className="animate-spin mr-2" /> : <ArrowDown className="mr-2 rotate-180" />} Pré-visualizar
             </Button>
           ) : (
             <Button onClick={handleConfirmImport} disabled={isImporting || summary.toImport === 0} className="bg-primary-new text-white font-bold">
