@@ -86,29 +86,25 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Buscar saldo acumulado do dia imediatamente anterior ao início do período
-      const { data: initialBalanceData } = await supabase
-        .from('vw_saldo_diario_conta')
-        .select('saldo_acumulado')
+      // 1. Obter a conta selecionada para saber o saldo base (con_limite)
+      const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
+      const baseBalance = Number(selectedAccount?.con_limite || 0);
+
+      // 2. Calcular a soma de TODOS os lançamentos ANTERIORES à data inicial
+      const { data: previousTransactions, error: pError } = await supabase
+        .from('lancamentos')
+        .select('lan_valor')
         .eq('lan_conta', selectedAccountId)
-        .lt('data', startDate)
-        .order('data', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .lt('lan_data', startDate);
 
-      let initial = initialBalanceData?.saldo_acumulado ? Number(initialBalanceData.saldo_acumulado) : 0;
+      if (pError) throw pError;
+
+      const previousSum = (previousTransactions || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
+      const calculatedInitial = baseBalance + previousSum;
       
-      // Se não houver histórico anterior na view, tenta usar o saldo inicial da conta (con_limite)
-      if (!initialBalanceData) {
-        const selectedAccount = accounts.find(acc => acc.con_id === selectedAccountId);
-        if (selectedAccount) {
-          initial = Number(selectedAccount.con_limite || 0);
-        }
-      }
-      setInitialBalance(initial);
+      setInitialBalance(calculatedInitial);
 
-      // 2. Buscar transações do período
-      // Removido 'created_at' do order by pois a coluna não existe na tabela lancamentos
+      // 3. Buscar transações do período selecionado
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
@@ -119,7 +115,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       if (tError) throw tError;
       
-      let runningBalance = initial;
+      let runningBalance = calculatedInitial;
       const processedTransactions = (transactionsData || []).map((t: any) => {
         runningBalance += Number(t.lan_valor);
         return { 
@@ -129,9 +125,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         };
       });
       setTransactions(processedTransactions);
-
-      console.log("[Conferencia] Saldo Inicial Calculado:", initial);
-      console.log("[Conferencia] Saldo Final Calculado:", runningBalance);
 
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
@@ -146,10 +139,10 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
   }, [user, fetchAccounts]);
 
   useEffect(() => {
-    if (selectedAccountId && startDate && endDate) {
+    if (selectedAccountId && startDate && endDate && accounts.length > 0) {
       fetchReconciliationData();
     }
-  }, [selectedAccountId, startDate, endDate, fetchReconciliationData]);
+  }, [selectedAccountId, startDate, endDate, fetchReconciliationData, accounts.length]);
 
   const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
   const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
