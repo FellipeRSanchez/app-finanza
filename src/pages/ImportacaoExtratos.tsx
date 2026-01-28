@@ -145,6 +145,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
           supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
+          // CORREÇÃO: Adicionando 'lan_conta' à seleção de lançamentos existentes
           supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_categoria, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
 
@@ -242,7 +243,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     // Filtrar lançamentos existentes APENAS para a conta selecionada para detecção de duplicados precisa
     existingLancamentos.forEach(lan => {
-      if (lan.lan_conta === selectedAccountId) {
+      if (lan.lan_conta === selectedAccountId) { // Agora lan.lan_conta estará disponível
         const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
         // Usar toFixed(2) para garantir que a comparação numérica não falhe por precisão de string
         const duplicateKey = `${formattedExistingDate}-${Number(lan.lan_valor).toFixed(2)}`;
