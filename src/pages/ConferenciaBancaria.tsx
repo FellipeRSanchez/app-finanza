@@ -15,6 +15,8 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
 import { Badge } from '@/components/ui/badge';
+import { subDays } from 'date-fns';
+
 
 interface Account {
   con_id: string;
