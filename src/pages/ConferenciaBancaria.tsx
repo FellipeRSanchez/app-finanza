@@ -85,7 +85,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Obter o saldo de abertura base (con_limite)
+      // 1. Obter o saldo de abertura base da conta
       const { data: accountData } = await supabase
         .from('contas')
         .select('con_limite')
@@ -94,26 +94,26 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       
       const openingLimit = Number(accountData?.con_limite || 0);
 
-      // 2. Obter o último saldo acumulado da VIEW antes da data inicial
-      // Isso resolve o problema das 1000 linhas pois a VIEW processa tudo no servidor
-      const { data: lastBalanceData, error: bError } = await supabase
+      // 2. Obter o saldo inicial exato do período usando a VIEW corrigida
+      // Buscamos o último saldo registrado ANTES da data de início
+      const { data: startBalanceData, error: bError } = await supabase
         .from('vw_saldo_diario_conta')
         .select('saldo_acumulado')
         .eq('lan_conta', selectedAccountId)
         .lt('data', startDate)
         .order('data', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
       if (bError) throw bError;
 
-      // Se houver histórico na view, usamos o saldo dela. 
-      // Se não houver nada antes dessa data, o saldo inicial é o con_limite (abertura da conta).
-      const calculatedInitial = lastBalanceData ? Number(lastBalanceData.saldo_acumulado) : openingLimit;
+      // Se existir saldo histórico, usamos ele. Se não (conta nova), usamos o limite inicial.
+      const calculatedInitial = (startBalanceData && startBalanceData.length > 0) 
+        ? Number(startBalanceData[0].saldo_acumulado) 
+        : openingLimit;
       
       setInitialBalance(calculatedInitial);
 
-      // 3. Buscar transações do período selecionado
+      // 3. Buscar lançamentos do período (todos, para conferência completa)
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
