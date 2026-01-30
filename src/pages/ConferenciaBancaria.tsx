@@ -100,9 +100,9 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .from('vw_saldo_diario_conta')
         .select('saldo_acumulado')
         .eq('lan_conta', selectedAccountId)
-        .lt('data', startDate)
-        .order('data', { ascending: false })
+        .eq('data', previousDay)
         .limit(1);
+
 
       if (bError) throw bError;
 
