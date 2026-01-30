@@ -85,37 +85,32 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Obter o saldo acumulado da view no último dia ANTES da data de início
-      const { data: balanceData, error: bError } = await supabase
-        .from('vw_saldo_diario_conta')
-        .select('saldo_acumulado')
+      // 1. Obter o saldo de abertura (con_limite) da conta diretamente do banco
+      const { data: accountData, error: accError } = await supabase
+        .from('contas')
+        .select('con_limite')
+        .eq('con_id', selectedAccountId)
+        .single();
+
+      if (accError) throw accError;
+      const openingLimit = Number(accountData.con_limite || 0);
+
+      // 2. Calcular a soma de TODOS os lançamentos anteriores à data inicial
+      // Usamos uma query que traz apenas o valor para somar no cliente (ou rpc se preferir, mas aqui faremos direto)
+      const { data: previousData, error: pError } = await supabase
+        .from('lancamentos')
+        .select('lan_valor')
         .eq('lan_conta', selectedAccountId)
-        .lt('data', startDate)
-        .order('data', { ascending: false })
-        .limit(1);
+        .lt('lan_data', startDate);
 
-      let openingBalance = 0;
+      if (pError) throw pError;
 
-      if (bError) {
-        console.error('Erro ao buscar saldo da view:', bError);
-      }
-
-      if (balanceData && balanceData.length > 0) {
-        // Se encontramos um saldo acumulado anterior na view, esse é o nosso ponto de partida
-        openingBalance = Number(balanceData[0].saldo_acumulado);
-      } else {
-        // Caso contrário (primeira conferência da conta), buscamos o con_limite (saldo inicial)
-        const { data: accountData } = await supabase
-          .from('contas')
-          .select('con_limite')
-          .eq('con_id', selectedAccountId)
-          .single();
-        openingBalance = Number(accountData?.con_limite || 0);
-      }
+      const previousSum = (previousData || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
+      const calculatedOpeningBalance = openingLimit + previousSum;
       
-      setInitialBalance(openingBalance);
+      setInitialBalance(calculatedOpeningBalance);
 
-      // 2. Buscar transações do período (considerando conciliadas e não conciliadas para compor o saldo)
+      // 3. Buscar transações do período selecionado
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
@@ -123,11 +118,11 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
         .order('lan_data', { ascending: true })
-        .order('lan_id', { ascending: true });
+        .order('lan_id', { ascending: true }); // Ordenação estável para saldo acumulado
 
       if (tError) throw tError;
       
-      let runningBalance = openingBalance;
+      let runningBalance = calculatedOpeningBalance;
       const processedTransactions = (transactionsData || []).map((t: any) => {
         runningBalance += Number(t.lan_valor);
         return { 
