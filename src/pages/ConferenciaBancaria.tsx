@@ -95,13 +95,13 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       if (accError) throw accError;
       const openingLimit = Number(accountData.con_limite || 0);
 
-      // 2. Calcular a soma de TODOS os lançamentos anteriores à data inicial
-      // Usamos uma query que traz apenas o valor para somar no cliente (ou rpc se preferir, mas aqui faremos direto)
+      // 2. Calcular a soma de TODOS os lançamentos ANTERIORES à data inicial, MAS APENAS OS CONCILIADOS
       const { data: previousData, error: pError } = await supabase
         .from('lancamentos')
         .select('lan_valor')
         .eq('lan_conta', selectedAccountId)
-        .lt('lan_data', startDate);
+        .lt('lan_data', startDate)
+        .eq('lan_conciliado', true); // <--- AQUI ESTÁ A CORREÇÃO
 
       if (pError) throw pError;
 
@@ -110,7 +110,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       
       setInitialBalance(calculatedOpeningBalance);
 
-      // 3. Buscar transações do período selecionado
+      // 3. Buscar transações do período selecionado (TODAS, conciliadas ou não)
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
