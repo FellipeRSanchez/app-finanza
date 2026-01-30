@@ -96,6 +96,11 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       // 2. Obter o saldo inicial exato do período usando a VIEW corrigida
       // Buscamos o último saldo registrado ANTES da data de início
+      const previousDay = format(
+        subDays(new Date(startDate), 1),
+        'yyyy-MM-dd'
+      );
+
       const { data: startBalanceData, error: bError } = await supabase
         .from('vw_saldo_diario_conta')
         .select('saldo_acumulado')
