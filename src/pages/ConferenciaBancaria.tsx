@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,6 @@ interface Transaction {
   categorias?: { cat_nome: string };
   lan_conciliado: boolean;
   is_checked: boolean;
-  saldo_acumulado: number;
 }
 
 const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
@@ -77,7 +76,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       }
     } catch (error) {
       console.error('Error fetching accounts:', error);
-      showError('Erro ao carregar contas.');
     }
   }, [user, selectedAccountId]);
 
@@ -85,7 +83,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Obter o saldo de abertura (con_limite) da conta diretamente do banco
+      // 1. Obter a conta selecionada
       const { data: accountData, error: accError } = await supabase
         .from('contas')
         .select('con_limite')
@@ -95,22 +93,21 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       if (accError) throw accError;
       const openingLimit = Number(accountData.con_limite || 0);
 
-      // 2. Calcular a soma de TODOS os lançamentos anteriores à data inicial
-      // Usamos uma query que traz apenas o valor para somar no cliente (ou rpc se preferir, mas aqui faremos direto)
+      // 2. SALDO INICIAL: Soma apenas do que foi CONCILIADO antes da data inicial
       const { data: previousData, error: pError } = await supabase
         .from('lancamentos')
         .select('lan_valor')
         .eq('lan_conta', selectedAccountId)
-        .lt('lan_data', startDate);
+        .lt('lan_data', startDate)
+        .eq('lan_conciliado', true); // CRUCIAL: Apenas o que já passou pelo banco
 
       if (pError) throw pError;
 
       const previousSum = (previousData || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
-      const calculatedOpeningBalance = openingLimit + previousSum;
-      
-      setInitialBalance(calculatedOpeningBalance);
+      const calculatedInitialBalance = openingLimit + previousSum;
+      setInitialBalance(calculatedInitialBalance);
 
-      // 3. Buscar transações do período selecionado
+      // 3. Buscar TODAS as transações do período (para que o usuário possa marcar o que conferiu)
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_categoria, categorias(cat_nome), lan_conciliado')
@@ -118,19 +115,14 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         .gte('lan_data', startDate)
         .lte('lan_data', endDate)
         .order('lan_data', { ascending: true })
-        .order('lan_id', { ascending: true }); // Ordenação estável para saldo acumulado
+        .order('lan_id', { ascending: true });
 
       if (tError) throw tError;
       
-      let runningBalance = calculatedOpeningBalance;
-      const processedTransactions = (transactionsData || []).map((t: any) => {
-        runningBalance += Number(t.lan_valor);
-        return { 
-          ...t, 
-          is_checked: t.lan_conciliado, 
-          saldo_acumulado: runningBalance 
-        };
-      });
+      const processedTransactions = (transactionsData || []).map((t: any) => ({
+        ...t,
+        is_checked: t.lan_conciliado, // Começa marcado se já estiver conciliado
+      }));
       setTransactions(processedTransactions);
 
     } catch (error) {
@@ -151,12 +143,20 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     }
   }, [selectedAccountId, startDate, endDate, fetchReconciliationData]);
 
-  const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
-  const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
-  const saldoCalculado = initialBalance + totalEntradas - totalSaidas;
+  // Cálculos dinâmicos baseados no que está MARCADO (checked)
+  const checkedSummary = useMemo(() => {
+    const checked = transactions.filter(t => t.is_checked);
+    const entradas = checked.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
+    const saidas = checked.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
+    return {
+      entradas,
+      saidas,
+      saldoFinal: initialBalance + entradas - saidas
+    };
+  }, [transactions, initialBalance]);
 
   const bankStatementBalanceNum = parseFloat(bankStatementBalance.replace(',', '.')) || 0;
-  const difference = bankStatementBalanceNum - saldoCalculado;
+  const difference = bankStatementBalanceNum - checkedSummary.saldoFinal;
   const isReconciled = Math.abs(difference) < 0.01;
 
   const handleTransactionCheck = (id: string) => {
@@ -164,10 +164,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       prev.map(t => (t.lan_id === id ? { ...t, is_checked: !t.is_checked } : t))
     );
   };
-
-  const filteredTransactions = showUncheckedOnly
-    ? transactions.filter(t => !t.lan_conciliado)
-    : transactions;
 
   const handleDateRangeChange = (period: string) => {
     const today = new Date();
@@ -188,10 +184,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         newStartDate = format(addDays(today, -6), 'yyyy-MM-dd');
         newEndDate = format(today, 'yyyy-MM-dd');
         break;
-      case 'last30Days':
-        newStartDate = format(addDays(today, -29), 'yyyy-MM-dd');
-        newEndDate = format(today, 'yyyy-MM-dd');
-        break;
       default:
         break;
     }
@@ -200,27 +192,26 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
   };
 
   const handleReconcileSelected = async () => {
-    const selectedToReconcile = transactions.filter(t => t.is_checked && !t.lan_conciliado);
+    const toConciliar = transactions.filter(t => t.is_checked && !t.lan_conciliado).map(t => t.lan_id);
+    const toDesconciliar = transactions.filter(t => !t.is_checked && t.lan_conciliado).map(t => t.lan_id);
 
-    if (selectedToReconcile.length === 0) {
-      showError('Nenhum lançamento selecionado para conciliar.');
+    if (toConciliar.length === 0 && toDesconciliar.length === 0) {
+      showError('Nenhuma alteração pendente para salvar.');
       return;
     }
 
     setIsReconciling(true);
     try {
-      const { error } = await supabase
-        .from('lancamentos')
-        .update({ lan_conciliado: true })
-        .in('lan_id', selectedToReconcile.map(t => t.lan_id));
-
-      if (error) throw error;
-
-      showSuccess(`${selectedToReconcile.length} lançamentos conciliados!`);
+      if (toConciliar.length > 0) {
+        await supabase.from('lancamentos').update({ lan_conciliado: true }).in('lan_id', toConciliar);
+      }
+      if (toDesconciliar.length > 0) {
+        await supabase.from('lancamentos').update({ lan_conciliado: false }).in('lan_id', toDesconciliar);
+      }
+      showSuccess('Conferência salva com sucesso!');
       fetchReconciliationData();
     } catch (error) {
-      console.error('Error:', error);
-      showError('Erro ao conciliar.');
+      showError('Erro ao salvar conferência.');
     } finally {
       setIsReconciling(false);
     }
@@ -233,78 +224,45 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
           Conferência Bancária
         </h1>
         <p className="text-text-secondary-light dark:text-text-secondary-dark text-lg">
-          Compare o saldo do sistema com o extrato do seu banco.
+          Concilie seu extrato bancário com o sistema.
         </p>
       </div>
 
-      {/* Card 1: Filters */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <Filter className="w-5 h-5 text-primary-new" /> Filtros de Conferência
+            <Filter className="w-5 h-5 text-primary-new" /> Filtros
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0 py-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="account-select" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Conta Bancária
-            </Label>
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Conta</Label>
             <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-              <SelectTrigger id="account-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
-                <SelectValue placeholder="Selecione uma conta..." />
+              <SelectTrigger className="rounded-xl border-border-light bg-background-light/50 h-12 text-sm">
+                <SelectValue placeholder="Selecione..." />
               </SelectTrigger>
-              <SelectContent className="bg-card-light dark:bg-card-dark z-50">
+              <SelectContent className="bg-white border shadow-lg rounded-xl">
                 {accounts.map(acc => (
                   <SelectItem key={acc.con_id} value={acc.con_id}>{acc.con_nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="start-date" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Data Inicial
-            </Label>
-            <Input
-              id="start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
-            />
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Início</Label>
+            <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="rounded-xl border-border-light bg-background-light/50 h-12 text-sm" />
           </div>
-
           <div className="space-y-2">
-            <Label htmlFor="end-date" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Data Final
-            </Label>
-            <Input
-              id="end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
-            />
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Fim</Label>
+            <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="rounded-xl border-border-light bg-background-light/50 h-12 text-sm" />
           </div>
-          <div className="md:col-span-3 flex flex-wrap gap-2 mt-4">
+          <div className="md:col-span-3 flex gap-2">
             <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('thisMonth')} className="rounded-full text-xs">Este Mês</Button>
             <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('lastMonth')} className="rounded-full text-xs">Mês Anterior</Button>
-            <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('last7Days')} className="rounded-full text-xs">Últimos 7 Dias</Button>
-            <Button variant="outline" size="sm" onClick={() => handleDateRangeChange('last30Days')} className="rounded-full text-xs">Últimos 30 Dias</Button>
           </div>
         </CardContent>
-        <div className="flex justify-end pt-6 border-t border-border-light dark:border-[#2d2438]">
-          <Button
-            onClick={fetchReconciliationData}
-            disabled={!selectedAccountId || !startDate || !endDate || loading}
-            className="bg-primary-new hover:bg-primary-new/90 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-primary-new/20 transition-all transform active:scale-95"
-          >
-            <RefreshCcw className="w-4 h-4 mr-2" /> Conferir Período
-          </Button>
-        </div>
       </Card>
 
-      {/* Card 2: Summary */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -313,40 +271,28 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </CardHeader>
         <CardContent className="px-0 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Saldo Inicial</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saldo Inicial (Conciliado)</p>
             <p className="text-xl font-bold text-text-main-light dark:text-text-main-dark">{formatCurrency(initialBalance)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Total Entradas</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalEntradas)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Entradas (Marcadas)</p>
+            <p className="text-xl font-bold text-emerald-600">{formatCurrency(checkedSummary.entradas)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Total Saídas</p>
-            <p className="text-xl font-bold text-rose-600 dark:text-rose-400">{formatCurrency(totalSaidas)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saídas (Marcadas)</p>
+            <p className="text-xl font-bold text-rose-600">{formatCurrency(checkedSummary.saidas)}</p>
           </div>
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Saldo Final Sistema</p>
-            <p className="text-xl font-bold text-text-main-light dark:text-text-main-dark">{formatCurrency(saldoCalculado)}</p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Saldo Final Sistema</p>
+            <p className="text-xl font-bold text-text-main-light dark:text-text-main-dark">{formatCurrency(checkedSummary.saldoFinal)}</p>
           </div>
           <div className="md:col-span-2 lg:col-span-2 space-y-2">
-            <Label htmlFor="bank-statement-balance" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
-              Saldo Informado pelo Banco
-            </Label>
-            <Input
-              id="bank-statement-balance"
-              type="number"
-              step="0.01"
-              value={bankStatementBalance}
-              onChange={(e) => setBankStatementBalance(e.target.value)}
-              placeholder="0,00"
-              className="rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 px-4 text-sm"
-            />
+            <Label className="text-[10px] font-black uppercase text-text-secondary-light">Saldo do Extrato Bancário</Label>
+            <Input type="number" step="0.01" value={bankStatementBalance} onChange={e => setBankStatementBalance(e.target.value)} placeholder="0,00" className="rounded-xl border-border-light bg-background-light/50 h-12 px-4 text-sm font-bold" />
           </div>
           <div className="md:col-span-1 lg:col-span-1 space-y-1">
-            <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Diferença</p>
-            <p className={cn("text-xl font-bold", isReconciled ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
-              {formatCurrency(difference)}
-            </p>
+            <p className="text-[10px] font-black uppercase text-text-secondary-light">Diferença</p>
+            <p className={cn("text-xl font-bold", isReconciled ? 'text-emerald-600' : 'text-rose-600')}>{formatCurrency(difference)}</p>
           </div>
           <div className="md:col-span-1 lg:col-span-1 flex items-end">
             <Badge className={cn("w-full py-3 text-base font-bold flex items-center justify-center gap-2", isReconciled ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600')}>
@@ -357,105 +303,46 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
         </CardContent>
       </Card>
 
-      {/* Card 3: Transactions Table */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438] flex-row items-center justify-between">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
-            <CalendarDays className="w-5 h-5 text-primary-new" /> Movimentações do Período
+            <CalendarDays className="w-5 h-5 text-primary-new" /> Lançamentos no Período
           </CardTitle>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowUncheckedOnly(!showUncheckedOnly)}
-              className="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark"
-            >
-              <Filter className="w-4 h-4 mr-2" /> {showUncheckedOnly ? 'Mostrar Todos' : 'Não Conferidos'}
+            <Button variant="outline" onClick={() => setShowUncheckedOnly(!showUncheckedOnly)} className="text-xs font-bold uppercase tracking-wider">
+              {showUncheckedOnly ? 'Mostrar Todos' : 'Ver Pendentes'}
             </Button>
-            <Button
-              onClick={handleReconcileSelected}
-              disabled={isReconciling || transactions.filter(t => t.is_checked && !t.lan_conciliado).length === 0}
-              className="bg-primary-new hover:bg-primary-new/90 text-white font-bold py-2 px-4 rounded-xl shadow-lg shadow-primary-new/20 transition-all transform active:scale-95"
-            >
-              {isReconciling ? 'Conciliando...' : 'Conciliar Selecionados'}
+            <Button onClick={handleReconcileSelected} disabled={isReconciling} className="bg-primary-new hover:bg-primary-new/90 text-white font-bold py-2 px-4 rounded-xl shadow-lg">
+              {isReconciling ? 'Salvando...' : 'Salvar Conferência'}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="px-0 py-6">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-background-light/50 dark:bg-background-dark/30">
-                <TableRow className="border-border-light dark:border-[#2d2438]">
-                  <TableHead className="w-[50px] text-center text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    <CheckCircle2 className="w-4 h-4 mx-auto" />
-                  </TableHead>
-                  <TableHead className="w-[100px] text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Data
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Descrição
-                  </TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Categoria
-                  </TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Valor
-                  </TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    Saldo Acumulado
-                  </TableHead>
+              <TableHeader className="bg-background-light/50">
+                <TableRow className="border-border-light">
+                  <TableHead className="w-[50px] text-center"><CheckCircle2 className="w-4 h-4 mx-auto" /></TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light">Data</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light">Descrição</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-text-secondary-light">Categoria</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-text-secondary-light">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
-                   Array(5).fill(0).map((_, i) => (
-                    <TableRow key={i}><TableCell colSpan={6} className="h-16 animate-pulse" /></TableRow>
-                  ))
-                ) : filteredTransactions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
-                      <AlertCircle className="mx-auto text-text-secondary-light dark:text-text-secondary-dark mb-4" size={48} />
-                      Nenhum lançamento {showUncheckedOnly ? 'não conferido' : ''} no período.
+                {loading ? Array(3).fill(0).map((_, i) => <TableRow key={i}><TableCell colSpan={5} className="h-16 animate-pulse" /></TableRow>) :
+                transactions.filter(t => !showUncheckedOnly || !t.is_checked).length === 0 ? <TableRow><TableCell colSpan={5} className="h-32 text-center opacity-60">Nenhum lançamento no período.</TableCell></TableRow> :
+                transactions.filter(t => !showUncheckedOnly || !t.is_checked).map((t) => (
+                  <TableRow key={t.lan_id} className={cn("group transition-colors", t.is_checked && "bg-emerald-50/20 dark:bg-emerald-900/10")}>
+                    <TableCell className="text-center">
+                      <input type="checkbox" checked={t.is_checked} onChange={() => handleTransactionCheck(t.lan_id)} className="h-4 w-4 rounded border-gray-300 text-primary-new focus:ring-primary-new" />
                     </TableCell>
+                    <TableCell className="text-xs font-bold text-text-secondary-light">{format(parseISO(t.lan_data), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell className="text-sm font-medium">{t.lan_descricao}</TableCell>
+                    <TableCell className="text-xs text-text-secondary-light">{t.categorias?.cat_nome || 'Sem Categoria'}</TableCell>
+                    <TableCell className={cn("text-right font-bold text-sm", t.lan_valor > 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatCurrency(t.lan_valor)}</TableCell>
                   </TableRow>
-                ) : (
-                  filteredTransactions.map((t) => {
-                    const isIncome = t.lan_valor > 0;
-                    return (
-                      <TableRow key={t.lan_id} className={cn(
-                        "group hover:bg-background-light/30 dark:hover:bg-[#2d2438]/30 transition-colors",
-                        t.lan_conciliado && "bg-emerald-50/20 dark:bg-emerald-900/10"
-                      )}>
-                        <TableCell className="text-center">
-                          <input
-                            type="checkbox"
-                            checked={t.is_checked}
-                            onChange={() => handleTransactionCheck(t.lan_id)}
-                            disabled={t.lan_conciliado}
-                            className="form-checkbox h-4 w-4 text-primary-new rounded border-gray-300 focus:ring-primary-new dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-primary-new"
-                          />
-                        </TableCell>
-                        <TableCell className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark">
-                          {format(parseISO(t.lan_data), 'dd/MM/yyyy', { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className="text-sm font-medium text-text-main-light dark:text-text-main-dark">
-                          {t.lan_descricao}
-                        </TableCell>
-                        <TableCell className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
-                          {t.categorias?.cat_nome || 'Sem Categoria'}
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-bold text-sm",
-                          isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                        )}>
-                          {formatCurrency(t.lan_valor)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-bold text-text-main-light dark:text-text-main-dark">
-                          {formatCurrency(t.saldo_acumulado)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
+                ))}
               </TableBody>
             </Table>
           </div>
