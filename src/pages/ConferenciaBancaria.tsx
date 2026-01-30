@@ -85,7 +85,7 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
     if (!selectedAccountId) return;
     setLoading(true);
     try {
-      // 1. Obter o saldo de abertura (con_limite) da conta diretamente do banco
+      // 1. Obter o saldo de abertura (con_limite) da conta
       const { data: accountData, error: accError } = await supabase
         .from('contas')
         .select('con_limite')
@@ -96,7 +96,6 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       const openingLimit = Number(accountData.con_limite || 0);
 
       // 2. Calcular a soma de TODOS os lançamentos anteriores à data inicial
-      // Usamos uma query que traz apenas o valor para somar no cliente (ou rpc se preferir, mas aqui faremos direto)
       const { data: previousData, error: pError } = await supabase
         .from('lancamentos')
         .select('lan_valor')
@@ -105,8 +104,9 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
       if (pError) throw pError;
 
+      // Usamos toFixed(2) e parseFloat para mitigar problemas de precisão de ponto flutuante
       const previousSum = (previousData || []).reduce((sum, t) => sum + Number(t.lan_valor), 0);
-      const calculatedOpeningBalance = openingLimit + previousSum;
+      const calculatedOpeningBalance = parseFloat((openingLimit + previousSum).toFixed(2));
       
       setInitialBalance(calculatedOpeningBalance);
 
@@ -124,7 +124,8 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
       
       let runningBalance = calculatedOpeningBalance;
       const processedTransactions = (transactionsData || []).map((t: any) => {
-        runningBalance += Number(t.lan_valor);
+        // Garantir que a soma acumulada também use precisão de 2 casas decimais
+        runningBalance = parseFloat((runningBalance + Number(t.lan_valor)).toFixed(2));
         return { 
           ...t, 
           is_checked: t.lan_conciliado, 
@@ -153,10 +154,10 @@ const ConferenciaBancaria = ({ hideValues }: { hideValues: boolean }) => {
 
   const totalEntradas = transactions.filter(t => t.lan_valor > 0).reduce((sum, t) => sum + Number(t.lan_valor), 0);
   const totalSaidas = transactions.filter(t => t.lan_valor < 0).reduce((sum, t) => sum + Math.abs(Number(t.lan_valor)), 0);
-  const saldoCalculado = initialBalance + totalEntradas - totalSaidas;
+  const saldoCalculado = parseFloat((initialBalance + totalEntradas - totalSaidas).toFixed(2));
 
   const bankStatementBalanceNum = parseFloat(bankStatementBalance.replace(',', '.')) || 0;
-  const difference = bankStatementBalanceNum - saldoCalculado;
+  const difference = parseFloat((bankStatementBalanceNum - saldoCalculado).toFixed(2));
   const isReconciled = Math.abs(difference) < 0.01;
 
   const handleTransactionCheck = (id: string) => {
