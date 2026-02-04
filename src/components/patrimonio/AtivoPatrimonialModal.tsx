@@ -156,6 +156,7 @@ const AtivoPatrimonialModal = ({
                 <SelectItem value="imovel">Imóvel</SelectItem>
                 <SelectItem value="veiculo">Veículo</SelectItem>
                 <SelectItem value="maquina">Máquina/Equipamento</SelectItem>
+                <SelectItem value="consorcio">Consórcio</SelectItem>
                 <SelectItem value="outro">Outro</SelectItem>
               </SelectContent>
             </Select>
