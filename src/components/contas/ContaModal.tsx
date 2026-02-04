@@ -55,6 +55,7 @@ const ContaModal = ({
     { value: 'cartao', label: 'Cartão de Crédito' },
     { value: 'dinheiro', label: 'Carteira (Dinheiro)' },
     { value: 'investimento', label: 'Investimentos' },
+    { value: 'consorcio', label: 'Consórcio' },
   ];
 
   useEffect(() => {
