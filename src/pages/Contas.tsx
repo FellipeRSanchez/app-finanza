@@ -181,6 +181,7 @@ const Contas = ({ hideValues }: { hideValues: boolean }) => {
       case 'cartao': return CreditCard;
       case 'dinheiro': return WalletIcon;
       case 'investimento': return TrendingUp;
+      case 'consorcio': return Scale;
       default: return Landmark;
     }
   };
@@ -210,7 +211,7 @@ const Contas = ({ hideValues }: { hideValues: boolean }) => {
 
   // Cálculos para os Cards de Resumo
   const saldoDisponivel = contas
-    .filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro')
+    .filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro' || acc.con_tipo === 'consorcio')
     .reduce((sum, acc) => sum + acc.saldoAtual, 0);
 
   const totalInvestimentos = investimentos.reduce((sum, inv) => sum + Number(inv.inv_current_value || 0), 0);
@@ -316,13 +317,13 @@ const Contas = ({ hideValues }: { hideValues: boolean }) => {
               Array(3).fill(0).map((_, i) => (
                 <div key={`loading-conta-${i}`} className="h-32 rounded-3xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
               ))
-            ) : contas.filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro').length === 0 ? (
+            ) : contas.filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro' || acc.con_tipo === 'consorcio').length === 0 ? (
               <div className="col-span-full py-10 text-center bg-background-light/50 rounded-3xl border-2 border-dashed border-border-light dark:border-[#2d2438]">
                 <AlertCircle className="mx-auto text-text-secondary-light dark:text-text-secondary-dark mb-4" size={48} />
                 <p className="text-sm font-bold text-[#756189] uppercase tracking-widest">Nenhuma conta financeira cadastrada.</p>
               </div>
             ) : (
-              contas.filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro').map((conta) => {
+              contas.filter(acc => acc.con_tipo === 'banco' || acc.con_tipo === 'dinheiro' || acc.con_tipo === 'consorcio').map((conta) => {
                 const Icon = getAccountIcon(conta.con_tipo);
                 const isNegative = conta.saldoAtual < 0;
                 return (
