@@ -30,6 +30,7 @@ interface Transaction {
   lan_data: string;
   lan_descricao: string;
   lan_valor: number;
+  lan_periodo: string | null;
   categoria_nome: string;
   lan_conciliado: boolean;
   is_checked: boolean;
@@ -146,19 +147,27 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
             cycleStartDate = subMonths(cycleStartDate, 1);
         }
 
+        const competencia = startOfMonth(invoiceDueDate);
+
         periods.push({
-          label: `${format(cycleEndDate, 'MMM/yyyy', { locale: ptBR })} (Venc: ${format(invoiceDueDate, 'dd/MM')})`,
-          value: format(cycleEndDate, 'yyyy-MM-dd'), // Use closing date as unique identifier for period
-          startDate: format(cycleStartDate, 'yyyy-MM-dd'),
-          endDate: format(cycleEndDate, 'yyyy-MM-dd'),
+          label: `${format(competencia, 'MMM/yyyy', { locale: ptBR })} (Venc: ${format(invoiceDueDate, 'dd/MM')})`,
+          value: format(competencia, 'yyyy-MM-dd'), // competência (início do mês do vencimento)
+          startDate: format(competencia, 'yyyy-MM-dd'),
+          endDate: format(competencia, 'yyyy-MM-dd'),
           dueDate: format(invoiceDueDate, 'yyyy-MM-dd'),
         });
       }
-      // Sort periods by end date descending
-      periods.sort((a, b) => parseISO(b.endDate).getTime() - parseISO(a.endDate).getTime());
-      setInvoicePeriods(periods);
-      if (periods.length > 0 && !selectedPeriod) {
-        setSelectedPeriod(periods[0].value); // Default to the latest period
+      // Remover duplicados (como estamos gerando por ciclo e convertendo para competência)
+      const unique = new Map<string, InvoicePeriod>();
+      for (const p of periods) unique.set(p.value, p);
+
+      const uniquePeriods = Array.from(unique.values());
+
+      // Sort periods by competência descending
+      uniquePeriods.sort((a, b) => parseISO(b.value).getTime() - parseISO(a.value).getTime());
+      setInvoicePeriods(uniquePeriods);
+      if (uniquePeriods.length > 0 && !selectedPeriod) {
+        setSelectedPeriod(uniquePeriods[0].value); // Default to the latest period
       }
     };
 
@@ -179,20 +188,26 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         return;
       }
 
-      // Fetch transactions for the selected period
+      // Fetch transactions for the selected period (por competência da fatura)
+      // Importante: com lan_periodo, a competência da fatura fica independente da data da compra.
       const { data: transactionsData, error: tError } = await supabase
-        .from('vw_lancamentos_cartao')
-        .select('lan_id, lan_data, lan_descricao, lan_valor, categoria_nome, lan_conciliado')
+        .from('lancamentos')
+        .select('lan_id, lan_data, lan_descricao, lan_valor, lan_periodo, lan_conciliado, categorias:lan_categoria(cat_nome)')
         .eq('lan_conta', selectedCardId)
-        .gte('lan_data', currentPeriod.startDate)
-        .lte('lan_data', currentPeriod.endDate)
+        .eq('lan_periodo', currentPeriod.startDate)
         .order('lan_data', { ascending: true });
 
       if (tError) throw tError;
 
-      const processedTransactions = (transactionsData || []).map((t: any) => ({
-        ...t,
-        is_checked: t.lan_conciliado, // Initialize local checkbox state from DB
+      const processedTransactions: Transaction[] = (transactionsData || []).map((t: any) => ({
+        lan_id: t.lan_id,
+        lan_data: t.lan_data,
+        lan_descricao: t.lan_descricao,
+        lan_valor: Number(t.lan_valor),
+        lan_periodo: t.lan_periodo,
+        categoria_nome: t.categorias?.cat_nome || 'Sem Categoria',
+        lan_conciliado: !!t.lan_conciliado,
+        is_checked: !!t.lan_conciliado, // Initialize local checkbox state from DB
       }));
       setTransactions(processedTransactions);
 
