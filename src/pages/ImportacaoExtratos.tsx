@@ -329,8 +329,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       });
 
       for (const tx of parsed) {
-        const value = Number(tx.value);
+        let value = Number(tx.value);
         const txDate = parseDateString(tx.date);
+
+        // Em cartões, normalmente o CSV vem com sinal invertido (gasto positivo).
+        // Padronização do app: despesas negativas.
+        if (isCartaoSelecionado) {
+          value = -value;
+        }
         const formattedDate = format(txDate, 'yyyy-MM-dd');
 
         // Período: se a conta for cartão, usa o selecionado; senão, usa mês do lançamento
