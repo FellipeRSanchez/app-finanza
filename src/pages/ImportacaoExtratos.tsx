@@ -110,11 +110,20 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
   const invoiceOptions = useMemo(() => {
     if (!isCartaoSelecionado) return [] as { value: string; label: string }[];
+
+    // De 08/2025 pra frente
+    const start = new Date(2025, 7, 1); // mês 7 = Agosto
     const now = new Date();
-    // opções simples: mês anterior, mês atual, mês seguinte (permite importar fatura já fechada / próxima)
-    const values = [toMonthStartISO(addMonths(now, -1)), toMonthStartISO(now), toMonthStartISO(addMonths(now, 1))];
-    const unique = Array.from(new Set(values));
-    return unique.map(v => ({ value: v, label: formatInvoiceLabel(v) }));
+    const end = addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 12); // até +12 meses
+
+    const values: string[] = [];
+    let cursor = start;
+    while (cursor <= end) {
+      values.push(toMonthStartISO(cursor));
+      cursor = addMonths(cursor, 1);
+    }
+
+    return values.map(v => ({ value: v, label: formatInvoiceLabel(v) }));
   }, [isCartaoSelecionado]);
 
   // Helper to format currency
