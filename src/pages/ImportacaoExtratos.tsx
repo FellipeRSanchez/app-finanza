@@ -24,6 +24,8 @@ interface Account {
   con_nome: string;
   con_tipo: string;
   con_banco: string | null;
+  con_data_fechamento: number | null;
+  con_data_vencimento: number | null;
 }
 
 interface Category {
@@ -48,6 +50,7 @@ interface ProcessedTransaction extends ParsedTransaction {
   ignore: boolean;
   isTransferCandidate: boolean;
   selectedLinkedAccountId: string | null;
+  periodo: string; // YYYY-MM-DD (first day of month)
 }
 
 // Constantes de persistência movidas para fora do componente para evitar recriação e re-execução de efeitos
@@ -143,7 +146,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         setGrupoId(userData.usu_grupo);
 
         const [accountsRes, categoriesRes, lancamentosRes] = await Promise.all([
-          supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco').eq('con_grupo', userData.usu_grupo),
+          supabase.from('contas').select('con_id, con_nome, con_tipo, con_banco, con_data_fechamento, con_data_vencimento').eq('con_grupo', userData.usu_grupo),
           supabase.from('categorias').select('cat_id, cat_nome, cat_tipo').eq('cat_grupo', userData.usu_grupo),
           supabase.from('lancamentos').select('lan_data, lan_descricao, lan_valor, lan_categoria, lan_conta').eq('lan_grupo', userData.usu_grupo),
         ]);
@@ -263,8 +266,29 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
     for (const tx of parsed) {
       const value = Number(tx.value);
-      const formattedDate = format(parseDateString(tx.date), 'yyyy-MM-dd');
+      const txDate = parseDateString(tx.date);
+      const formattedDate = format(txDate, 'yyyy-MM-dd');
       
+      // Calcular período da fatura
+      let periodo = format(new Date(txDate.getFullYear(), txDate.getMonth(), 1), 'yyyy-MM-dd');
+      const selectedAccount = accounts.find(a => a.con_id === selectedAccountId);
+      
+      if (selectedAccount?.con_tipo === 'cartao' && selectedAccount.con_data_fechamento) {
+        const day = txDate.getDate();
+        let month = txDate.getMonth();
+        let year = txDate.getFullYear();
+
+        // Se o dia da compra for após o fechamento, cai na fatura do próximo mês
+        if (day > selectedAccount.con_data_fechamento) {
+          month++;
+          if (month > 11) {
+            month = 0;
+            year++;
+          }
+        }
+        periodo = format(new Date(year, month, 1), 'yyyy-MM-dd');
+      }
+
       // Checar duplicidade com formatação numérica idêntica à do Set
       const checkKey = `${formattedDate}-${value.toFixed(2)}`;
       let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
@@ -293,6 +317,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         ignore: status === 'duplicate',
         isTransferCandidate,
         selectedLinkedAccountId: null,
+        periodo,
       });
     }
     setProcessedTransactions(processed);
@@ -357,12 +382,12 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const sName = accounts.find(a => a.con_id === sourceId)?.con_nome;
           const dName = accounts.find(a => a.con_id === destId)?.con_nome;
 
-          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência para ${dName}`, lan_valor: -val, lan_categoria: systemCategories.transferenciaId, lan_conta: sourceId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
-          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: `Transferência de ${sName}`, lan_valor: val, lan_categoria: systemCategories.transferenciaId, lan_conta: destId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: lO } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_periodo: tx.periodo, lan_descricao: `Transferência para ${dName}`, lan_valor: -val, lan_categoria: systemCategories.transferenciaId, lan_conta: sourceId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
+          const { data: lD } = await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_periodo: tx.periodo, lan_descricao: `Transferência de ${sName}`, lan_valor: val, lan_categoria: systemCategories.transferenciaId, lan_conta: destId, lan_conciliado: false, lan_grupo: grupoId, lan_importado: true }).select().single();
           const { data: nT } = await supabase.from('transferencias').insert({ tra_grupo: grupoId, tra_data: tx.date, tra_descricao: tx.description, tra_valor: val, tra_conta_origem: sourceId, tra_conta_destino: destId, tra_lancamento_origem: lO.lan_id, tra_lancamento_destino: lD.lan_id, tra_conciliado: false }).select().single();
           await supabase.from('lancamentos').update({ lan_transferencia: nT.tra_id }).in('lan_id', [lO.lan_id, lD.lan_id]);
         } else {
-          await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: false, lan_importado: true });
+          await supabase.from('lancamentos').insert({ lan_data: tx.date, lan_periodo: tx.periodo, lan_descricao: tx.description, lan_valor: tx.value, lan_categoria: tx.suggestedCategoryId, lan_conta: selectedAccountId, lan_grupo: grupoId, lan_conciliado: false, lan_importado: true });
         }
       }
       showSuccess('Importação concluída!');
