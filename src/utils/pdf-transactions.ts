@@ -14,7 +14,7 @@ export type PdfExtractedTransaction = {
 const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
 
 const parsePtBrNumber = (raw: string) => {
-  // Aceita: 1.234,56 | 123,45 | 123.45 | -123,45 | R$ 123,45
+  // Aceita: 1.234,56 | 123,45 | 123.45 | -123,45 | R$ 123,45 | - R$ 123,45
   const cleaned = raw
     .replace(/[^\d,.-]/g, "")
     .replace(/\./g, "")
@@ -25,17 +25,6 @@ const parsePtBrNumber = (raw: string) => {
 
 const isLikelyDateDDMMYYYY = (s: string) => /^\d{2}\/\d{2}\/\d{4}$/.test(s);
 const isLikelyDateDDMM = (s: string) => /^\d{2}\/\d{2}$/.test(s);
-
-const isLikelyMoneyToken = (s: string) => {
-  const t = s.trim();
-  if (!t) return false;
-  if (t === "R$" || t.toUpperCase() === "RS") return false;
-  return (
-    /-?\d{1,3}(\.\d{3})*,\d{2}$/.test(t) ||
-    /-?\d+,\d{2}$/.test(t) ||
-    /-?\d+(\.\d{2})$/.test(t)
-  );
-};
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -61,18 +50,6 @@ function detectLikelyYear(text: string): number {
     }
   }
   return bestYear;
-}
-
-function tokenizePreservingMoney(text: string) {
-  const normalized = text
-    .replace(/R\$\s*/g, "R$ ")
-    .replace(/R\$\s+(-?\d)/g, "R$ $1")
-    .replace(/R\$\s?(-?\d)/g, "R$ $1");
-
-  return normalized
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter(Boolean);
 }
 
 const monthMap: Record<string, number> = {
@@ -103,28 +80,6 @@ const monthMap: Record<string, number> = {
   dezembro: 12,
 };
 
-function parsePtBrLongDateTokenSequence(tokens: string[], startIndex: number): { date: string; nextIndex: number } | null {
-  // Aceita: "19 de ago. 2025" ou "19 de ago 2025"
-  // tokens: [ "19", "de", "ago.", "2025" ]
-  const ddRaw = tokens[startIndex];
-  const maybeDe = tokens[startIndex + 1];
-  const monthRaw = tokens[startIndex + 2];
-  const yyyyRaw = tokens[startIndex + 3];
-
-  if (!ddRaw || !maybeDe || !monthRaw || !yyyyRaw) return null;
-  if (!/^\d{1,2}$/.test(ddRaw)) return null;
-  if (maybeDe.toLowerCase() !== "de") return null;
-  if (!/^\d{4}$/.test(yyyyRaw)) return null;
-
-  const dd = Number(ddRaw);
-  const yyyy = Number(yyyyRaw);
-  const monthKey = monthRaw.toLowerCase().replace(".", "");
-  const mm = monthMap[monthKey];
-  if (!mm) return null;
-
-  return { date: toDdMmYyyy(dd, mm, yyyy), nextIndex: startIndex + 4 };
-}
-
 function isJunkDescription(desc: string) {
   const d = desc.toLowerCase();
   if (d.length < 3) return true;
@@ -147,6 +102,64 @@ function isJunkDescription(desc: string) {
     "resumo",
   ];
   return junk.includes(d) || junk.some((j) => d === j);
+}
+
+function parseLongPtBrDateFromLineStart(line: string): { date: string; rest: string } | null {
+  // Ex: "19 DE AGO. 2025 ZARA..." (case-insensitive)
+  const m = line.match(/^(\d{1,2})\s+de\s+([A-Za-zÀ-ÿ.]+)\s+(\d{4})\s+(.*)$/i);
+  if (!m) return null;
+
+  const dd = Number(m[1]);
+  const monthKey = m[2].toLowerCase().replace(".", "");
+  const yyyy = Number(m[3]);
+  const mm = monthMap[monthKey];
+  if (!mm) return null;
+
+  return { date: toDdMmYyyy(dd, mm, yyyy), rest: m[4] };
+}
+
+function parseDdMmFromLineStart(line: string, likelyYear: number): { date: string; rest: string } | null {
+  // Ex: "01/07 MERCADOPAGO..."
+  const m = line.match(/^(\d{2})\/(\d{2})\s+(.*)$/);
+  if (!m) return null;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  return { date: toDdMmYyyy(dd, mm, likelyYear), rest: m[3] };
+}
+
+function parseMoneyAtLineEnd(rest: string): { description: string; value: number } | null {
+  // Aceita finais como:
+  // "... R$ 35,00"
+  // "... - R$ 270,83"
+  // "... -270,83"
+  // "... 270,83"
+  const s = normalizeSpaces(rest);
+
+  // 1) "- R$ 270,83"
+  let m = s.match(/^(.*)\s-\sR\$\s(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/i);
+  if (m) {
+    const description = normalizeSpaces(m[1]);
+    const value = -Math.abs(parsePtBrNumber(m[2]));
+    if (description && Number.isFinite(value)) return { description, value };
+  }
+
+  // 2) "R$ 35,00" (positivo)
+  m = s.match(/^(.*)\sR\$\s(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/i);
+  if (m) {
+    const description = normalizeSpaces(m[1]);
+    const value = parsePtBrNumber(m[2]);
+    if (description && Number.isFinite(value)) return { description, value };
+  }
+
+  // 3) "-270,83" ou "270,83" como último token
+  m = s.match(/^(.*)\s(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/);
+  if (m) {
+    const description = normalizeSpaces(m[1]);
+    const value = parsePtBrNumber(m[2]);
+    if (description && Number.isFinite(value)) return { description, value };
+  }
+
+  return null;
 }
 
 export async function extractTransactionsFromPdf(file: File): Promise<PdfExtractedTransaction[]> {
@@ -200,127 +213,53 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
 
   const likelyYear = detectLikelyYear(fullText);
 
-  // 1) Tentativa por linha (quando a linha já vem certinha)
-  const extractedLineBased: PdfExtractedTransaction[] = [];
+  const extracted: PdfExtractedTransaction[] = [];
 
-  for (const line of lines) {
-    // dd/MM/yyyy ... valor
-    const matchFull = line.match(
-      /^(\d{2}\/\d{2}\/\d{4})\s+(.*)\s+(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/,
-    );
-    if (matchFull) {
-      const date = matchFull[1];
-      const description = normalizeSpaces(matchFull[2]);
-      const value = parsePtBrNumber(matchFull[3]);
-      if (isLikelyDateDDMMYYYY(date) && description && !isJunkDescription(description) && Number.isFinite(value)) {
-        extractedLineBased.push({ date, description, value: Math.abs(value) });
+  for (const rawLine of lines) {
+    const line = normalizeSpaces(rawLine);
+    if (!line) continue;
+
+    // 1) Data por extenso (Inter): "19 DE AGO. 2025 ..."
+    const longDate = parseLongPtBrDateFromLineStart(line);
+    if (longDate) {
+      const money = parseMoneyAtLineEnd(longDate.rest);
+      if (money && !isJunkDescription(money.description)) {
+        extracted.push({
+          date: longDate.date,
+          description: money.description,
+          value: Math.abs(money.value),
+        });
       }
       continue;
     }
 
-    // dd/MM ... valor => completa ano provável
-    const matchNoYear = line.match(
-      /^(\d{2}\/\d{2})\s+(.*)\s+(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/,
-    );
-    if (matchNoYear) {
-      const [dd, mm] = matchNoYear[1].split("/").map(Number);
-      const date = toDdMmYyyy(dd, mm, likelyYear);
-      const description = normalizeSpaces(matchNoYear[2]);
-      const value = parsePtBrNumber(matchNoYear[3]);
-      if (description && !isJunkDescription(description) && Number.isFinite(value)) {
-        extractedLineBased.push({ date, description, value: Math.abs(value) });
+    // 2) Data dd/MM (Mercado Pago): "01/07 ..."
+    const shortDate = parseDdMmFromLineStart(line, likelyYear);
+    if (shortDate) {
+      const money = parseMoneyAtLineEnd(shortDate.rest);
+      if (money && !isJunkDescription(money.description)) {
+        extracted.push({
+          date: shortDate.date,
+          description: money.description,
+          value: Math.abs(money.value),
+        });
       }
       continue;
     }
 
-    // "19 de ago. 2025 ... 123,45"
-    const matchLong = line.match(
-      /^(\d{1,2})\s+de\s+([A-Za-zÀ-ÿ.]+)\s+(\d{4})\s+(.*)\s+(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/,
-    );
-    if (matchLong) {
-      const dd = Number(matchLong[1]);
-      const monthKey = matchLong[2].toLowerCase().replace(".", "");
-      const yyyy = Number(matchLong[3]);
-      const mm = monthMap[monthKey];
-      const description = normalizeSpaces(matchLong[4]);
-      const value = parsePtBrNumber(matchLong[5]);
-      if (mm && description && !isJunkDescription(description) && Number.isFinite(value)) {
-        extractedLineBased.push({ date: toDdMmYyyy(dd, mm, yyyy), description, value: Math.abs(value) });
+    // 3) Data dd/MM/yyyy no começo (alguns bancos)
+    const fullDate = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.*)$/);
+    if (fullDate && isLikelyDateDDMMYYYY(fullDate[1])) {
+      const money = parseMoneyAtLineEnd(fullDate[2]);
+      if (money && !isJunkDescription(money.description)) {
+        extracted.push({
+          date: fullDate[1],
+          description: money.description,
+          value: Math.abs(money.value),
+        });
       }
     }
   }
-
-  // 2) Parser sequencial por tokens (quando a tabela vem quebrada)
-  const extractedTokenBased: PdfExtractedTransaction[] = [];
-  if (extractedLineBased.length === 0) {
-    const allTokens = tokenizePreservingMoney(normalizeSpaces(lines.join(" ")));
-
-    let i = 0;
-    while (i < allTokens.length) {
-      let dateStr: string | null = null;
-      let nextIndex = i;
-
-      // dd/MM/yyyy
-      if (isLikelyDateDDMMYYYY(allTokens[i])) {
-        dateStr = allTokens[i];
-        nextIndex = i + 1;
-      } else if (isLikelyDateDDMM(allTokens[i])) {
-        // dd/MM
-        const [dd, mm] = allTokens[i].split("/").map(Number);
-        dateStr = toDdMmYyyy(dd, mm, likelyYear);
-        nextIndex = i + 1;
-      } else {
-        // dd de mmm. yyyy
-        const longDate = parsePtBrLongDateTokenSequence(allTokens, i);
-        if (longDate) {
-          dateStr = longDate.date;
-          nextIndex = longDate.nextIndex;
-        }
-      }
-
-      if (!dateStr) {
-        i++;
-        continue;
-      }
-
-      i = nextIndex;
-
-      const descParts: string[] = [];
-      let valueStr: string | null = null;
-
-      while (i < allTokens.length) {
-        const tok = allTokens[i];
-
-        // Se aparecer outra "data" antes do valor, aborta esta tentativa.
-        if (isLikelyDateDDMMYYYY(tok) || isLikelyDateDDMM(tok) || parsePtBrLongDateTokenSequence(allTokens, i)) {
-          break;
-        }
-
-        if (tok === "R$") {
-          i++;
-          continue;
-        }
-
-        if (isLikelyMoneyToken(tok)) {
-          valueStr = tok;
-          i++;
-          break;
-        }
-
-        descParts.push(tok);
-        i++;
-      }
-
-      const description = normalizeSpaces(descParts.join(" "));
-      const value = valueStr ? parsePtBrNumber(valueStr) : NaN;
-
-      if (dateStr && isLikelyDateDDMMYYYY(dateStr) && description && !isJunkDescription(description) && Number.isFinite(value)) {
-        extractedTokenBased.push({ date: dateStr, description, value: Math.abs(value) });
-      }
-    }
-  }
-
-  const extracted = extractedLineBased.length > 0 ? extractedLineBased : extractedTokenBased;
 
   // Remove duplicados internos do PDF (mesma data/desc/valor)
   const uniq = new Map<string, PdfExtractedTransaction>();
