@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CalendarDays, CheckCircle2, XCircle, Scale, TrendingUp, TrendingDown, Filter, RefreshCcw, AlertCircle, DollarSign } from 'lucide-react';
-import { format, parseISO, startOfMonth, endOfMonth, subMonths, addMonths, getDate, isBefore, isAfter, differenceInDays } from 'date-fns';
+import { CalendarDays, CheckCircle2, XCircle, Filter, RefreshCcw, AlertCircle, DollarSign, Square } from 'lucide-react';
+import { format, parseISO, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { showSuccess, showError } from '@/utils/toast';
@@ -59,23 +59,20 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
   const [showHighValueOnly, setShowHighValueOnly] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
 
-  const HIGH_VALUE_THRESHOLD = 500; // Define threshold for "high value" transactions
+  const HIGH_VALUE_THRESHOLD = 500;
 
-  const formatCurrency = useCallback((value: number) => {
-    if (hideValues) return '••••••';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  }, [hideValues]);
+  const formatCurrency = useCallback(
+    (value: number) => {
+      if (hideValues) return '••••••';
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    },
+    [hideValues]
+  );
 
-  // Fetch credit card accounts
   useEffect(() => {
     const fetchCardAccounts = async () => {
       try {
-        const { data: userData } = await supabase
-          .from('usuarios')
-          .select('usu_grupo')
-          .eq('usu_id', user?.id)
-          .single();
-
+        const { data: userData } = await supabase.from('usuarios').select('usu_grupo').eq('usu_id', user?.id).single();
         if (!userData?.usu_grupo) return;
 
         const { data, error } = await supabase
@@ -85,6 +82,7 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
           .eq('con_tipo', 'cartao');
 
         if (error) throw error;
+
         setCardAccounts(data || []);
         if (data && data.length > 0 && !selectedCardId) {
           setSelectedCardId(data[0].con_id);
@@ -95,15 +93,12 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
       }
     };
 
-    if (user) {
-      fetchCardAccounts();
-    }
+    if (user) fetchCardAccounts();
   }, [user, selectedCardId]);
 
-  // Generate invoice periods when a card is selected
   useEffect(() => {
     const generatePeriods = () => {
-      const selected = cardAccounts.find(acc => acc.con_id === selectedCardId);
+      const selected = cardAccounts.find((acc) => acc.con_id === selectedCardId);
       if (!selected || !selected.con_data_fechamento || !selected.con_data_vencimento) {
         setInvoicePeriods([]);
         setSelectedPeriod('');
@@ -112,84 +107,74 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
 
       const periods: InvoicePeriod[] = [];
       const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
 
-      // Generate periods for the last 12 months + current month + next month
-      for (let i = -12; i <= 1; i++) { // From 12 months ago to next month
+      for (let i = -12; i <= 1; i++) {
         const targetDate = addMonths(today, i);
         const targetMonth = targetDate.getMonth();
         const targetYear = targetDate.getFullYear();
 
-        let fechamentoDay = selected.con_data_fechamento;
-        let vencimentoDay = selected.con_data_vencimento;
+        const fechamentoDay = selected.con_data_fechamento;
+        const vencimentoDay = selected.con_data_vencimento;
 
-        // Calculate invoice cycle dates
         let cycleStartDate: Date;
         let cycleEndDate: Date;
         let invoiceDueDate: Date;
 
-        // Determine the closing date for the current invoice cycle
         const currentCycleClosingDate = new Date(targetYear, targetMonth, fechamentoDay);
 
-        if (fechamentoDay >= vencimentoDay) { // Closing date is after due date in the month
+        if (fechamentoDay >= vencimentoDay) {
           cycleEndDate = currentCycleClosingDate;
           cycleStartDate = addMonths(new Date(targetYear, targetMonth - 1, fechamentoDay + 1), 0);
           invoiceDueDate = addMonths(new Date(targetYear, targetMonth + 1, vencimentoDay), 0);
-        } else { // Closing date is before due date in the month
+        } else {
           cycleEndDate = currentCycleClosingDate;
           cycleStartDate = new Date(targetYear, targetMonth, fechamentoDay + 1);
           invoiceDueDate = addMonths(new Date(targetYear, targetMonth, vencimentoDay), 0);
         }
-        
-        // Adjust cycleStartDate if it falls in the same month as cycleEndDate and fechamentoDay is small
-        if (cycleStartDate.getMonth() === cycleEndDate.getMonth() && cycleStartDate.getFullYear() === cycleEndDate.getFullYear() && fechamentoDay < 15) {
-            cycleStartDate = subMonths(cycleStartDate, 1);
+
+        if (
+          cycleStartDate.getMonth() === cycleEndDate.getMonth() &&
+          cycleStartDate.getFullYear() === cycleEndDate.getFullYear() &&
+          fechamentoDay < 15
+        ) {
+          cycleStartDate = subMonths(cycleStartDate, 1);
         }
 
-        const competencia = startOfMonth(invoiceDueDate);
+        const competencia = new Date(invoiceDueDate.getFullYear(), invoiceDueDate.getMonth(), 1);
 
         periods.push({
           label: `${format(competencia, 'MMM/yyyy', { locale: ptBR })} (Venc: ${format(invoiceDueDate, 'dd/MM')})`,
-          value: format(competencia, 'yyyy-MM-dd'), // competência (início do mês do vencimento)
+          value: format(competencia, 'yyyy-MM-dd'),
           startDate: format(competencia, 'yyyy-MM-dd'),
           endDate: format(competencia, 'yyyy-MM-dd'),
           dueDate: format(invoiceDueDate, 'yyyy-MM-dd'),
         });
       }
-      // Remover duplicados (como estamos gerando por ciclo e convertendo para competência)
+
       const unique = new Map<string, InvoicePeriod>();
       for (const p of periods) unique.set(p.value, p);
 
       const uniquePeriods = Array.from(unique.values());
-
-      // Sort periods by competência descending
       uniquePeriods.sort((a, b) => parseISO(b.value).getTime() - parseISO(a.value).getTime());
+
       setInvoicePeriods(uniquePeriods);
-      if (uniquePeriods.length > 0 && !selectedPeriod) {
-        setSelectedPeriod(uniquePeriods[0].value); // Default to the latest period
-      }
+      if (uniquePeriods.length > 0 && !selectedPeriod) setSelectedPeriod(uniquePeriods[0].value);
     };
 
-    if (selectedCardId) {
-      generatePeriods();
-    }
-  }, [selectedCardId, cardAccounts]);
+    if (selectedCardId) generatePeriods();
+  }, [selectedCardId, cardAccounts, selectedPeriod]);
 
-  // Fetch reconciliation data when card or period changes
   const fetchReconciliationData = useCallback(async () => {
     if (!selectedCardId || !selectedPeriod) return;
     setLoading(true);
     try {
-      const currentPeriod = invoicePeriods.find(p => p.value === selectedPeriod);
+      const currentPeriod = invoicePeriods.find((p) => p.value === selectedPeriod);
       if (!currentPeriod) {
         showError('Período da fatura inválido.');
         setLoading(false);
         return;
       }
 
-      // Fetch transactions for the selected period (por competência da fatura)
-      // Importante: com lan_periodo, a competência da fatura fica independente da data da compra.
       const { data: transactionsData, error: tError } = await supabase
         .from('lancamentos')
         .select('lan_id, lan_data, lan_descricao, lan_valor, lan_periodo, lan_conciliado, categorias:lan_categoria(cat_nome)')
@@ -207,14 +192,13 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         lan_periodo: t.lan_periodo,
         categoria_nome: t.categorias?.cat_nome || 'Sem Categoria',
         lan_conciliado: !!t.lan_conciliado,
-        is_checked: !!t.lan_conciliado, // Initialize local checkbox state from DB
+        is_checked: !!t.lan_conciliado,
       }));
+
       setTransactions(processedTransactions);
 
-      // Calculate system invoice total
       const total = processedTransactions.reduce((sum, t) => sum + t.lan_valor, 0);
       setSystemInvoiceTotal(total);
-
     } catch (error) {
       console.error('Error fetching reconciliation data:', error);
       showError('Erro ao carregar dados da fatura.');
@@ -223,19 +207,31 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
     }
   }, [selectedCardId, selectedPeriod, invoicePeriods]);
 
-  // Trigger data fetch when selected card or period changes
   useEffect(() => {
     fetchReconciliationData();
   }, [fetchReconciliationData]);
 
   const handleTransactionCheck = (id: string) => {
-    setTransactions(prev =>
-      prev.map(t => (t.lan_id === id ? { ...t, is_checked: !t.is_checked } : t))
+    setTransactions((prev) => prev.map((t) => (t.lan_id === id ? { ...t, is_checked: !t.is_checked } : t)));
+  };
+
+  const allUnreconciledChecked = useMemo(() => {
+    const unreconciled = transactions.filter((t) => !t.lan_conciliado);
+    if (unreconciled.length === 0) return false;
+    return unreconciled.every((t) => t.is_checked);
+  }, [transactions]);
+
+  const handleToggleSelectAll = () => {
+    setTransactions((prev) =>
+      prev.map((t) => {
+        if (t.lan_conciliado) return t;
+        return { ...t, is_checked: !allUnreconciledChecked };
+      })
     );
   };
 
   const handleReconcileSelected = async () => {
-    const selectedToReconcile = transactions.filter(t => t.is_checked && !t.lan_conciliado);
+    const selectedToReconcile = transactions.filter((t) => t.is_checked && !t.lan_conciliado);
 
     if (selectedToReconcile.length === 0) {
       showError('Nenhum lançamento selecionado para conciliar ou já estão conciliados.');
@@ -247,12 +243,12 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
       const { error } = await supabase
         .from('lancamentos')
         .update({ lan_conciliado: true })
-        .in('lan_id', selectedToReconcile.map(t => t.lan_id));
+        .in('lan_id', selectedToReconcile.map((t) => t.lan_id));
 
       if (error) throw error;
 
       showSuccess(`${selectedToReconcile.length} lançamentos conciliados com sucesso!`);
-      fetchReconciliationData(); // Re-fetch data to update UI
+      fetchReconciliationData();
     } catch (error) {
       console.error('Error reconciling transactions:', error);
       showError('Erro ao conciliar lançamentos.');
@@ -265,14 +261,14 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
   const difference = bankInvoiceValueNum - systemInvoiceTotal;
   const isReconciled = Math.abs(difference) < 0.01;
 
-  const filteredTransactions = transactions.filter(t => {
+  const filteredTransactions = transactions.filter((t) => {
     const matchesUnchecked = !showUncheckedOnly || !t.lan_conciliado;
     const matchesHighValue = !showHighValueOnly || Math.abs(t.lan_valor) > HIGH_VALUE_THRESHOLD;
     return matchesUnchecked && matchesHighValue;
   });
 
-  const currentCard = cardAccounts.find(acc => acc.con_id === selectedCardId);
-  const currentPeriodDetails = invoicePeriods.find(p => p.value === selectedPeriod);
+  const currentCard = cardAccounts.find((acc) => acc.con_id === selectedCardId);
+  const currentPeriodDetails = invoicePeriods.find((p) => p.value === selectedPeriod);
 
   return (
     <div className="max-w-7xl mx-auto flex flex-col gap-8 pb-10">
@@ -285,7 +281,6 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         </p>
       </div>
 
-      {/* Card 1: Filters */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -294,19 +289,29 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         </CardHeader>
         <CardContent className="px-0 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <Label htmlFor="card-select" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
+            <Label
+              htmlFor="card-select"
+              className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark"
+            >
               Cartão de Crédito
             </Label>
             <Select value={selectedCardId} onValueChange={setSelectedCardId}>
-              <SelectTrigger id="card-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
+              <SelectTrigger
+                id="card-select"
+                className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm"
+              >
                 <SelectValue placeholder="Selecione um cartão..." />
               </SelectTrigger>
               <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
                 {cardAccounts.length === 0 ? (
-                  <SelectItem value="no-cards" disabled>Nenhum cartão disponível</SelectItem>
+                  <SelectItem value="no-cards" disabled>
+                    Nenhum cartão disponível
+                  </SelectItem>
                 ) : (
-                  cardAccounts.map(card => (
-                    <SelectItem key={card.con_id} value={card.con_id}>{card.con_nome}</SelectItem>
+                  cardAccounts.map((card) => (
+                    <SelectItem key={card.con_id} value={card.con_id}>
+                      {card.con_nome}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -314,19 +319,33 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="period-select" className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">
+            <Label
+              htmlFor="period-select"
+              className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark"
+            >
               Competência da Fatura
             </Label>
-            <Select value={selectedPeriod} onValueChange={setSelectedPeriod} disabled={!selectedCardId || invoicePeriods.length === 0}>
-              <SelectTrigger id="period-select" className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm">
+            <Select
+              value={selectedPeriod}
+              onValueChange={setSelectedPeriod}
+              disabled={!selectedCardId || invoicePeriods.length === 0}
+            >
+              <SelectTrigger
+                id="period-select"
+                className="w-full rounded-xl border-border-light dark:border-[#3a3045] bg-background-light/50 dark:bg-[#1e1629] h-12 pl-4 pr-10 text-sm"
+              >
                 <SelectValue placeholder="Selecione o período..." />
               </SelectTrigger>
               <SelectContent className="bg-card-light dark:bg-card-dark z-50" position="popper" sideOffset={5}>
                 {invoicePeriods.length === 0 ? (
-                  <SelectItem value="no-periods" disabled>Nenhum período disponível</SelectItem>
+                  <SelectItem value="no-periods" disabled>
+                    Nenhum período disponível
+                  </SelectItem>
                 ) : (
-                  invoicePeriods.map(period => (
-                    <SelectItem key={period.value} value={period.value}>{period.label}</SelectItem>
+                  invoicePeriods.map((period) => (
+                    <SelectItem key={period.value} value={period.value}>
+                      {period.label}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -344,7 +363,6 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         </div>
       </Card>
 
-      {/* Card 2: Summary */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438]">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -386,12 +404,22 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
           </div>
           <div className="md:col-span-1 lg:col-span-1 space-y-1">
             <p className="text-[10px] font-black uppercase text-text-secondary-light dark:text-text-secondary-dark">Diferença</p>
-            <p className={cn("text-xl font-bold", isReconciled ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>
+            <p
+              className={cn(
+                "text-xl font-bold",
+                isReconciled ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              )}
+            >
               {formatCurrency(difference)}
             </p>
           </div>
           <div className="md:col-span-1 lg:col-span-1 flex items-end">
-            <Badge className={cn("w-full py-3 text-base font-bold flex items-center justify-center gap-2", isReconciled ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600')}>
+            <Badge
+              className={cn(
+                "w-full py-3 text-base font-bold flex items-center justify-center gap-2",
+                isReconciled ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'
+              )}
+            >
               {isReconciled ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
               {isReconciled ? 'CONFERE' : 'DIVERGE'}
             </Badge>
@@ -399,7 +427,6 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
         </CardContent>
       </Card>
 
-      {/* Card 3: Transactions List */}
       <Card className="bg-card-light dark:bg-[#1e1629] rounded-2xl p-6 md:p-8 shadow-soft border border-border-light dark:border-[#2d2438]">
         <CardHeader className="px-0 pt-0 pb-6 border-b border-border-light dark:border-[#2d2438] flex-row items-center justify-between">
           <CardTitle className="text-xl font-bold text-text-main-light dark:text-text-main-dark flex items-center gap-2">
@@ -422,7 +449,7 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
             </Button>
             <Button
               onClick={handleReconcileSelected}
-              disabled={isReconciling || transactions.filter(t => t.is_checked && !t.lan_conciliado).length === 0}
+              disabled={isReconciling || transactions.filter((t) => t.is_checked && !t.lan_conciliado).length === 0}
               className="bg-primary-new hover:bg-primary-new/90 text-white font-bold py-2 px-4 rounded-xl shadow-lg shadow-primary-new/20 transition-all transform active:scale-95"
             >
               {isReconciling ? 'Conciliando...' : 'Conciliar Selecionados'}
@@ -435,7 +462,21 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
               <TableHeader className="bg-background-light/50 dark:bg-background-dark/30">
                 <TableRow className="border-border-light dark:border-[#2d2438]">
                   <TableHead className="w-[50px] text-center text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
-                    <CheckCircle2 className="w-4 h-4 mx-auto" />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleToggleSelectAll}
+                      disabled={transactions.every((t) => t.lan_conciliado) || loading}
+                      className="h-8 w-8 rounded-lg mx-auto"
+                      title={allUnreconciledChecked ? "Desmarcar todos" : "Selecionar todos"}
+                    >
+                      {allUnreconciledChecked ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </Button>
                   </TableHead>
                   <TableHead className="w-[100px] text-[10px] font-black uppercase tracking-widest text-text-secondary-light dark:text-text-secondary-dark">
                     Data
@@ -451,15 +492,17 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
                   </TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              <TableBody className="select-none">
                 {loading ? (
-                  Array(5).fill(0).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={5} className="h-16 animate-pulse">
-                        <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  Array(5)
+                    .fill(0)
+                    .map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell colSpan={5} className="h-16 animate-pulse">
+                          <div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div>
+                        </TableCell>
+                      </TableRow>
+                    ))
                 ) : filteredTransactions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center text-text-secondary-light dark:text-text-secondary-dark opacity-60">
@@ -471,11 +514,15 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
                   filteredTransactions.map((t) => {
                     const isIncome = t.lan_valor > 0;
                     const isHighValue = Math.abs(t.lan_valor) > HIGH_VALUE_THRESHOLD;
+
                     return (
-                      <TableRow key={t.lan_id} className={cn(
-                        "group hover:bg-background-light/30 dark:hover:bg-[#2d2438]/30 transition-colors",
-                        t.lan_conciliado && "bg-emerald-50/20 dark:bg-emerald-900/10"
-                      )}>
+                      <TableRow
+                        key={t.lan_id}
+                        className={cn(
+                          "group hover:bg-background-light/30 dark:hover:bg-[#2d2438]/30 transition-colors",
+                          t.lan_conciliado && "bg-emerald-50/20 dark:bg-emerald-900/10"
+                        )}
+                      >
                         <TableCell className="text-center">
                           <input
                             type="checkbox"
@@ -488,17 +535,24 @@ const ConferenciaCartao = ({ hideValues }: { hideValues: boolean }) => {
                         <TableCell className="text-xs font-bold text-text-secondary-light dark:text-text-secondary-dark">
                           {format(parseISO(t.lan_data), 'dd/MM/yyyy', { locale: ptBR })}
                         </TableCell>
-                        <TableCell className={cn("text-sm font-medium text-text-main-light dark:text-text-main-dark", isHighValue && "font-bold text-primary-new dark:text-white")}>
+                        <TableCell
+                          className={cn(
+                            "text-sm font-medium text-text-main-light dark:text-text-main-dark",
+                            isHighValue && "font-bold text-primary-new dark:text-white"
+                          )}
+                        >
                           {t.lan_descricao}
                         </TableCell>
                         <TableCell className="text-xs text-text-secondary-light dark:text-text-secondary-dark">
                           {t.categoria_nome || 'Sem Categoria'}
                         </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-bold text-sm",
-                          isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
-                          isHighValue && "text-lg"
-                        )}>
+                        <TableCell
+                          className={cn(
+                            "text-right font-bold text-sm",
+                            isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400',
+                            isHighValue && "text-lg"
+                          )}
+                        >
                           {formatCurrency(t.lan_valor)}
                         </TableCell>
                       </TableRow>
