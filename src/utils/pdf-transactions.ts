@@ -6,55 +6,32 @@ import * as pdfjsLib from "pdfjs-dist";
 ).toString();
 
 export type PdfExtractedTransaction = {
-  date: string; // dd/MM/yyyy
+  date: string; 
   description: string;
   value: number; 
 };
 
-const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
-
-const parsePtBrNumber = (raw: string) => {
-  const cleaned = raw
-    .replace(/[^\d,.-]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  const val = Number.parseFloat(cleaned);
-  return Number.isFinite(val) ? val : NaN;
+const monthMap: Record<string, number> = {
+  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+  jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+  janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
+  julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12
 };
+
+const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-function toDdMmYyyy(dd: number, mm: number, yyyy: number) {
-  return `${pad2(dd)}/${pad2(mm)}/${yyyy}`;
-}
-
-const monthMap: Record<string, number> = {
-  jan: 1, janeiro: 1,
-  fev: 2, fevereiro: 2,
-  mar: 3, março: 3, marco: 3,
-  abr: 4, abril: 4,
-  mai: 5, maio: 5,
-  jun: 6, junho: 6,
-  jul: 7, julho: 7,
-  ago: 8, agosto: 8,
-  set: 9, setembro: 9,
-  out: 10, outubro: 10,
-  nov: 11, novembro: 11,
-  dez: 12, dezembro: 12,
-};
-
-function detectLikelyYear(text: string): number {
-  const years = Array.from(text.matchAll(/\b(20\d{2})\b/g)).map((m) => Number(m[1]));
-  if (years.length === 0) return new Date().getFullYear();
-  const freq = new Map<number, number>();
-  for (const y of years) freq.set(y, (freq.get(y) ?? 0) + 1);
-  let bestYear = years[0], bestCount = 0;
-  for (const [y, c] of freq.entries()) {
-    if (c > bestCount) { bestYear = y; bestCount = c; }
-  }
-  return bestYear;
+function parsePtBrNumber(raw: string): number {
+  // Limpa R$, pontos de milhar e converte vírgula decimal
+  const cleaned = raw
+    .replace(/R\$/g, "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+  return parseFloat(cleaned);
 }
 
 export async function extractTransactionsFromPdf(file: File): Promise<PdfExtractedTransaction[]> {
@@ -69,34 +46,26 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
 
-    const items = (content.items as any[])
-      .map((it) => ({
-        str: String(it.str || "").trim(),
-        x: it.transform?.[4] ?? 0,
-        y: it.transform?.[5] ?? 0,
-      }))
-      .filter((i) => i.str);
+    const items = (content.items as any[]).map((it) => ({
+      str: String(it.str || "").trim(),
+      x: it.transform?.[4] ?? 0,
+      y: it.transform?.[5] ?? 0,
+    })).filter((i) => i.str);
 
-    fullText += " " + items.map((i) => i.str).join(" ");
+    fullText += " " + items.map(i => i.str).join(" ");
 
+    // Agrupa por Y (linha) com uma tolerância maior (5px)
     const rowMap = new Map<number, { y: number; parts: { x: number; str: string }[] }>();
-    const yBucket = (y: number) => Math.round(y / 3) * 3; // Bucket levemente maior para agrupar melhor
-
     for (const it of items) {
-      const key = yBucket(it.y);
+      const key = Math.round(it.y / 5) * 5;
       const existing = rowMap.get(key);
       if (!existing) rowMap.set(key, { y: it.y, parts: [{ x: it.x, str: it.str }] });
       else existing.parts.push({ x: it.x, str: it.str });
     }
 
     const rows = Array.from(rowMap.values())
-      .sort((a, b) => b.y - a.y) // Topo para baixo
-      .map((row) =>
-        row.parts
-          .sort((a, b) => a.x - b.x) // Esquerda para direita
-          .map((p) => p.str)
-          .join(" "),
-      );
+      .sort((a, b) => b.y - a.y)
+      .map((row) => row.parts.sort((a, b) => a.x - b.x).map((p) => p.str).join(" "));
 
     rows.forEach((r) => {
       const line = normalizeSpaces(r);
@@ -104,59 +73,60 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
     });
   }
 
-  const likelyYear = detectLikelyYear(fullText);
+  // Detecta o ano mais comum no documento
+  const years = Array.from(fullText.matchAll(/\b(20\d{2})\b/g)).map(m => Number(m[1]));
+  const likelyYear = years.length > 0 ? [...new Set(years)].sort((a,b) => b-a)[0] : new Date().getFullYear();
+
   const extracted: PdfExtractedTransaction[] = [];
 
   for (const line of lines) {
+    // 1. LIMPEZA INICIAL
+    // Remove o hífen isolado (comum no Inter em colunas vazias)
+    let cleanLine = line.replace(/\s-\s/g, " "); 
+    cleanLine = normalizeSpaces(cleanLine);
+
     let dateStr = "";
     let value = NaN;
-    let rest = line;
+    let description = "";
 
-    // 1. Tentar capturar DATA no início
-    // Case A: 19 DE AGO. 2025
-    const longDateMatch = rest.match(/^(\d{1,2})\s+DE\s+([A-ZÀ-ÿ.]+)\.?\s+(\d{4})\s+(.*)$/i);
+    // 2. EXTRAÇÃO DE DATA (No início da linha)
+    // Caso A: 19 DE AGO. 2025 ou 19 DE AGOSTO 2025
+    const longDateMatch = cleanLine.match(/^(\d{1,2})\s+DE\s+([A-ZÀ-ÿ.]+)\s+(\d{4})/i);
     if (longDateMatch) {
       const dd = Number(longDateMatch[1]);
-      const mm = monthMap[longDateMatch[2].toLowerCase().replace(".", "")];
+      const monthKey = longDateMatch[2].toLowerCase().replace(".", "");
+      const mm = monthMap[monthKey];
       const yyyy = Number(longDateMatch[3]);
       if (mm) {
-        dateStr = toDdMmYyyy(dd, mm, yyyy);
-        rest = longDateMatch[4];
+        dateStr = `${pad2(dd)}/${pad2(mm)}/${yyyy}`;
+        cleanLine = cleanLine.replace(longDateMatch[0], "");
       }
-    } else {
-      // Case B: 01/07
-      const shortDateMatch = rest.match(/^(\d{2})\/(\d{2})\s+(.*)$/);
+    } 
+    // Caso B: 01/07
+    else {
+      const shortDateMatch = cleanLine.match(/^(\d{2})\/(\d{2})/);
       if (shortDateMatch) {
-        dateStr = toDdMmYyyy(Number(shortDateMatch[1]), Number(shortDateMatch[2]), likelyYear);
-        rest = shortDateMatch[3];
-      } else {
-        // Case C: dd/MM/yyyy
-        const fullDateMatch = rest.match(/^(\d{2}\/\d{2}\/\d{4})\s+(.*)$/);
-        if (fullDateMatch) {
-          dateStr = fullDateMatch[1];
-          rest = fullDateMatch[2];
-        }
+        dateStr = `${shortDateMatch[1]}/${shortDateMatch[2]}/${likelyYear}`;
+        cleanLine = cleanLine.replace(shortDateMatch[0], "");
       }
     }
 
     if (!dateStr) continue;
 
-    // 2. Tentar capturar VALOR no final (ex: R$ 35,00 ou - R$ 270,83)
-    // Procuramos por algo que comece com R$ ou apenas números no fim
-    const moneyMatch = rest.match(/(?:-\s+)?R\$\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})$/i) || 
-                       rest.match(/\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$/);
-    
+    // 3. EXTRAÇÃO DE VALOR (No final da linha)
+    // Padrão: R$ 35,00 ou 1.234,56 ou 270,83
+    const moneyMatch = cleanLine.match(/(R\$\s*)?(-?\d{1,3}(\.\d{3})*,\d{2})$/i);
     if (moneyMatch) {
-      value = parsePtBrNumber(moneyMatch[1]);
-      // A descrição é o que sobrou entre a data e o valor
-      rest = rest.replace(moneyMatch[0], "");
+      value = parsePtBrNumber(moneyMatch[2]);
+      description = cleanLine.replace(moneyMatch[0], "");
     }
 
-    // 3. Limpar Descrição
-    // Remove hífens isolados (coluna vazia do Inter) e espaços extras
-    let description = normalizeSpaces(rest.replace(/\s-\s/g, " ").replace(/^-/, "").replace(/-$/, ""));
+    // 4. VALIDAÇÃO FINAL
+    description = normalizeSpaces(description);
+    // Remove hífens que sobraram no final da descrição
+    description = description.replace(/-$/, "").trim();
 
-    if (dateStr && description && !isNaN(value)) {
+    if (dateStr && description.length > 2 && !isNaN(value)) {
       extracted.push({
         date: dateStr,
         description: description,
@@ -165,7 +135,7 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
     }
   }
 
-  // Remove duplicados exatos
+  // Dedup por chave única
   const uniq = new Map<string, PdfExtractedTransaction>();
   for (const t of extracted) {
     const key = `${t.date}|${t.description.toLowerCase()}|${t.value.toFixed(2)}`;
