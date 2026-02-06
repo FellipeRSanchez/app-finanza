@@ -333,9 +333,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         const txDate = parseDateString(tx.date);
 
         // Em cartões, normalmente o CSV vem com sinal invertido (gasto positivo).
-        // Padronização do app: despesas negativas.
+        // Regra: se vier negativo no CSV, é estorno/receita no cartão => deve virar positivo.
+        // Caso contrário, inverte (gasto positivo => despesa negativa).
         if (isCartaoSelecionado) {
-          value = -value;
+          value = value < 0 ? Math.abs(value) : -value;
         }
         const formattedDate = format(txDate, 'yyyy-MM-dd');
 
