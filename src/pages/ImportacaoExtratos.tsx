@@ -17,6 +17,7 @@ import { ptBR } from 'date-fns/locale';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { extractTransactionsFromPdf } from '@/utils/pdf-transactions';
 
 // Interfaces for data
 interface Account {
@@ -70,7 +71,6 @@ function toMonthStartISO(date: Date) {
 
 function formatInvoiceLabel(periodoISO: string) {
   try {
-    // `periodoISO` = primeiro dia do mês (YYYY-MM-DD)
     const d = parseISO(periodoISO);
     return format(d, "MMMM 'de' yyyy", { locale: ptBR });
   } catch {
@@ -111,10 +111,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const invoiceOptions = useMemo(() => {
     if (!isCartaoSelecionado) return [] as { value: string; label: string }[];
 
-    // De 08/2025 pra frente
-    const start = new Date(2025, 7, 1); // mês 7 = Agosto
+    const start = new Date(2025, 7, 1); // Agosto/2025
     const now = new Date();
-    const end = addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 12); // até +12 meses
+    const end = addMonths(new Date(now.getFullYear(), now.getMonth(), 1), 12); // +12 meses
 
     const values: string[] = [];
     let cursor = start;
@@ -178,16 +177,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (selectedInvoicePeriodo) localStorage.setItem(LOCAL_STORAGE_KEYS.selectedInvoicePeriodo, selectedInvoicePeriodo);
   }, [selectedAccountId, processedTransactions, uploadStep, useAiClassification, lastSelectedFileName, lastSelectedFileSize, selectedInvoicePeriodo]);
 
-  // Garantir um default do período ao mudar conta selecionada
+  // Default invoice periodo when selecting a card
   useEffect(() => {
     if (!isCartaoSelecionado) {
       setSelectedInvoicePeriodo('');
       return;
     }
-
     if (selectedInvoicePeriodo) return;
-    const defaultPeriodo = toMonthStartISO(new Date());
-    setSelectedInvoicePeriodo(defaultPeriodo);
+    setSelectedInvoicePeriodo(toMonthStartISO(new Date()));
   }, [isCartaoSelecionado, selectedInvoicePeriodo]);
 
   // Fetch initial data
@@ -251,7 +248,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     if (!dateStr) return new Date();
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return parseISO(dateStr);
     if (dateStr.match(/^\d{8}$/)) {
-      return new Date(parseInt(dateStr.substring(0, 4)), parseInt(dateStr.substring(4, 6)) - 1, parseInt(dateStr.substring(6, 8)));
+      return new Date(
+        parseInt(dateStr.substring(0, 4)),
+        parseInt(dateStr.substring(4, 6)) - 1,
+        parseInt(dateStr.substring(6, 8))
+      );
     }
     if (dateStr.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
       const [day, month, year] = dateStr.split('/').map(Number);
@@ -271,13 +272,14 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     ];
     for (const pattern of patterns) {
       const match = lowerDescription.match(pattern);
-      if (match && match[2]) return match[2].split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      if (match && match[2])
+        return match[2].split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     }
     return null;
   };
 
-  const classifyTransactionWithAI = useCallback(async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
-    try {
+  const classifyTransactionWithAI = useCallback(
+    async (description: string, value: number, availableCategories: Category[]): Promise<string | null> => {
       const type = value >= 0 ? 'receita' : 'despesa';
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
@@ -285,20 +287,16 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
 
       const response = await fetch('https://wvhpwclgevtdzrfqtvvg.supabase.co/functions/v1/classify-transaction', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ description, categories: availableCategories, type }),
       });
 
       if (!response.ok) return null;
       const data = await response.json();
       return data.suggestedCategoryId;
-    } catch (error) {
-      return null;
-    }
-  }, []);
+    },
+    []
+  );
 
   const processTransactions = useCallback(
     async (parsed: ParsedTransaction[]) => {
@@ -307,11 +305,10 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
       const existingTransactionsSet = new Set<string>();
       const personCategoryMap = new Map<string, { categoryId: string; date: Date }>();
 
-      // Filtrar lançamentos existentes APENAS para a conta selecionada para detecção de duplicados precisa
+      // Filtrar lançamentos existentes APENAS para a conta selecionada
       existingLancamentos.forEach(lan => {
         if (lan.lan_conta === selectedAccountId) {
           const formattedExistingDate = format(parseISO(lan.lan_data), 'yyyy-MM-dd');
-          // Usar toFixed(2) para garantir que a comparação numérica não falhe por precisão de string
           const duplicateKey = `${formattedExistingDate}-${Number(lan.lan_valor).toFixed(2)}`;
           existingTransactionsSet.add(duplicateKey);
         }
@@ -323,7 +320,8 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const lanCategory = categories.find(c => c.cat_id === lan.lan_categoria);
           if (lanCategory && lanCategory.cat_tipo !== 'sistema') {
             const currentEntry = personCategoryMap.get(personName);
-            if (!currentEntry || lanDate > currentEntry.date) personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
+            if (!currentEntry || lanDate > currentEntry.date)
+              personCategoryMap.set(personName, { categoryId: lan.lan_categoria, date: lanDate });
           }
         }
       });
@@ -332,29 +330,32 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         let value = Number(tx.value);
         const txDate = parseDateString(tx.date);
 
-        // Em cartões, normalmente o CSV vem com sinal invertido (gasto positivo).
-        // Padronização do app: despesas negativas.
+        // Cartão: o PDF vem com gasto positivo -> padroniza para negativo
         if (isCartaoSelecionado) {
-          value = -value;
+          value = -Math.abs(value);
         }
-        const formattedDate = format(txDate, 'yyyy-MM-dd');
 
-        // Período: se a conta for cartão, usa o selecionado; senão, usa mês do lançamento
+        const formattedDate = format(txDate, 'yyyy-MM-dd');
         const periodo = isCartaoSelecionado && selectedInvoicePeriodo ? selectedInvoicePeriodo : toMonthStartISO(txDate);
 
-        // Checar duplicidade com formatação numérica idêntica à do Set
         const checkKey = `${formattedDate}-${value.toFixed(2)}`;
-        let status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
+        const status: 'new' | 'duplicate' | 'ignored' = existingTransactionsSet.has(checkKey) ? 'duplicate' : 'new';
 
         let suggestedCategoryId: string | null = null;
-        let isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k => tx.description.toLowerCase().includes(k));
+        const isTransferCandidate = ['transferencia', 'ted', 'pix', 'doc', 'transferência'].some(k =>
+          tx.description.toLowerCase().includes(k)
+        );
 
         if (useAiClassification && status === 'new') {
           if (isTransferCandidate) {
             const personName = extractPersonName(tx.description);
-            suggestedCategoryId = (personName && personCategoryMap.get(personName)?.categoryId) || systemCategories.transferenciaId;
+            suggestedCategoryId =
+              (personName && personCategoryMap.get(personName)?.categoryId) || systemCategories.transferenciaId;
           } else {
-            suggestedCategoryId = (await classifyTransactionWithAI(tx.description, tx.value, categories)) || existingDescriptionsMap.get(tx.description.toLowerCase()) || null;
+            suggestedCategoryId =
+              (await classifyTransactionWithAI(tx.description, value, categories)) ||
+              existingDescriptionsMap.get(tx.description.toLowerCase()) ||
+              null;
           }
         }
 
@@ -379,11 +380,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     },
     [
       existingLancamentos,
+      selectedAccountId,
       categories,
       useAiClassification,
-      systemCategories.transferenciaId,
       classifyTransactionWithAI,
-      selectedAccountId,
+      systemCategories.transferenciaId,
       isCartaoSelecionado,
       selectedInvoicePeriodo,
     ]
@@ -397,16 +398,32 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
     }
 
     setLoading(true);
+
     try {
+      let parsed: ParsedTransaction[] = [];
+
+      if (selectedFile.name.toLowerCase().endsWith('.pdf')) {
+        const pdfTxs = await extractTransactionsFromPdf(selectedFile);
+        parsed = pdfTxs.map((t, i) => ({
+          id: `pdf-${i}`,
+          date: t.date,
+          description: t.description,
+          value: t.value,
+          originalRow: t,
+        }));
+        await processTransactions(parsed);
+        setLoading(false);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = async e => {
         const text = e.target?.result as string;
-        let parsed: ParsedTransaction[] = [];
 
         if (selectedFile.name.endsWith('.csv')) {
           Papa.parse(text, {
             complete: async results => {
-              parsed = results.data
+              parsed = (results.data as any[])
                 .map((row: any, i: number) => ({
                   id: `temp-${i}`,
                   date: String(row[0]),
@@ -435,18 +452,24 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             .filter((r: any) => r.date && r.description);
           await processTransactions(parsed);
           setLoading(false);
+        } else {
+          setLoading(false);
+          showError('Formato de arquivo não suportado. Use PDF, CSV ou XLS/XLSX.');
         }
       };
+
       reader.readAsText(selectedFile);
-    } catch (error) {
+    } catch (e) {
       setLoading(false);
-      showError('Erro ao processar arquivo.');
+      showError('Erro ao processar o PDF. Se quiser, me diga qual PDF (Inter / Mercado Pago) e eu ajusto o parser.');
+      throw e;
     }
   };
 
   const handleConfirmImport = async () => {
     if (!grupoId || !selectedAccountId) return;
     setIsImporting(true);
+
     const toProcess = processedTransactions.filter(tx => !tx.ignore);
 
     try {
@@ -458,7 +481,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
           const sName = accounts.find(a => a.con_id === sourceId)?.con_nome;
           const dName = accounts.find(a => a.con_id === destId)?.con_nome;
 
-          const { data: lO } = await supabase
+          const { data: lO, error: loError } = await supabase
             .from('lancamentos')
             .insert({
               lan_data: tx.date,
@@ -473,7 +496,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             })
             .select()
             .single();
-          const { data: lD } = await supabase
+          if (loError) throw loError;
+
+          const { data: lD, error: ldError } = await supabase
             .from('lancamentos')
             .insert({
               lan_data: tx.date,
@@ -488,7 +513,9 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             })
             .select()
             .single();
-          const { data: nT } = await supabase
+          if (ldError) throw ldError;
+
+          const { data: nT, error: tError } = await supabase
             .from('transferencias')
             .insert({
               tra_grupo: grupoId,
@@ -503,9 +530,11 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             })
             .select()
             .single();
+          if (tError) throw tError;
+
           await supabase.from('lancamentos').update({ lan_transferencia: nT.tra_id }).in('lan_id', [lO.lan_id, lD.lan_id]);
         } else {
-          await supabase.from('lancamentos').insert({
+          const { error } = await supabase.from('lancamentos').insert({
             lan_data: tx.date,
             lan_periodo: tx.periodo,
             lan_descricao: tx.description,
@@ -516,12 +545,15 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
             lan_conciliado: false,
             lan_importado: true,
           });
+          if (error) throw error;
         }
       }
+
       showSuccess('Importação concluída!');
       clearPersistedState();
       navigate('/lancamentos', { state: { refresh: true } });
     } catch (error) {
+      console.error(error);
       showError('Erro na importação.');
     } finally {
       setIsImporting(false);
@@ -583,7 +615,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
         <h1 className="text-3xl font-black tracking-tight text-text-main-light">
           Importação de Extratos {selectedAccountName && <span className="text-primary-new">({selectedAccountName})</span>}
         </h1>
-        <p className="text-text-secondary-light text-lg">Sincronize seus arquivos OFX, CSV ou XLS automaticamente.</p>
+        <p className="text-text-secondary-light text-lg">Carregue arquivos PDF, CSV ou XLS para importar lançamentos.</p>
       </div>
 
       <Card className="bg-card-light rounded-2xl shadow-soft border border-border-light overflow-hidden">
@@ -632,7 +664,6 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     value={selectedAccountId}
                     onValueChange={val => {
                       setSelectedAccountId(val);
-                      // ao trocar a conta, zera os dados da importação
                       setProcessedTransactions([]);
                       setSelectedFile(null);
                       setUploadStep('upload');
@@ -667,7 +698,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                       </SelectContent>
                     </Select>
                     <p className="mt-2 text-xs text-text-secondary-light">
-                      Este período será salvo em <span className="font-bold">lan_periodo</span> para todos os lançamentos importados.
+                      Para cartão, o PDF vem com gastos positivos — o app vai importar como <span className="font-bold">despesa (valor negativo)</span>.
                     </p>
                   </Label>
                 )}
@@ -676,7 +707,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <Info className="text-yellow-600 shrink-0 mt-0.5" size={20} />
                   <div className="text-sm text-yellow-800">
                     <p className="font-bold mb-1">Atenção ao formato</p>
-                    <p>CSV padrão: Coluna 1 (Data), Coluna 2 (Descrição), Coluna 3 (Valor).</p>
+                    <p>CSV padrão: Coluna 1 (Data), Coluna 2 (Descrição), Coluna 3 (Valor). PDF: tabela (Data/Descrição/Valor).</p>
                   </div>
                 </div>
               </div>
@@ -690,21 +721,24 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <div className="flex flex-col items-center p-4 text-center">
                     <CloudUpload className="text-primary-new mb-4" size={32} />
                     <p className="text-sm font-medium">Clique ou arraste o arquivo aqui</p>
-                    <p className="text-xs text-text-secondary-light">OFX, CSV ou XLS (max. 10MB)</p>
+                    <p className="text-xs text-text-secondary-light">PDF, CSV ou XLS/XLSX (max. 10MB)</p>
                   </div>
                   <Input
                     id="file-upload"
                     type="file"
+                    accept=".pdf,.csv,.xls,.xlsx,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     className="hidden"
                     onChange={e => {
                       const f = e.target.files?.[0];
                       if (f) {
                         setSelectedFile(f);
                         setLastSelectedFileName(f.name);
+                        setLastSelectedFileSize(f.size);
                       }
                     }}
                   />
                 </Label>
+
                 {selectedFile && (
                   <div className="mt-2 text-xs flex items-center justify-between">
                     <span>{selectedFile.name}</span>
@@ -734,7 +768,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                     <TableRow className="bg-background-light">
                       <TableHead className="w-[120px]">Data</TableHead>
                       <TableHead>Descrição</TableHead>
-                      <TableHead className="w-[200px]">Categoria</TableHead>
+                      <TableHead className="w-[220px]">Categoria</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
                       <TableHead className="text-center">Ações</TableHead>
                     </TableRow>
@@ -742,7 +776,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                   <TableBody>
                     {processedTransactions.map(tx => (
                       <TableRow key={tx.id} className={cn(tx.ignore && 'opacity-50', tx.status === 'duplicate' && 'bg-orange-50')}>
-                        <TableCell className="text-xs font-medium">{format(parseDateString(tx.date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-xs font-medium">{format(parseISO(tx.date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="text-sm">{tx.description}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
@@ -763,6 +797,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                                 ))}
                               </SelectContent>
                             </Select>
+
                             {tx.suggestedCategoryId === systemCategories.transferenciaId && (
                               <Select
                                 value={tx.selectedLinkedAccountId || ''}
@@ -786,9 +821,7 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell
-                          className={cn('text-right font-bold text-sm', tx.value >= 0 ? 'text-emerald-600' : 'text-rose-600')}
-                        >
+                        <TableCell className={cn('text-right font-bold text-sm', tx.value >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
                           {formatCurrency(tx.value)}
                         </TableCell>
                         <TableCell className="text-center">
