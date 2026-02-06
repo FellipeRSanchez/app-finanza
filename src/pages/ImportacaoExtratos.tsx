@@ -238,8 +238,13 @@ const ImportacaoExtratos = ({ hideValues }: { hideValues: boolean }) => {
   const cleanAndParseFloat = (value: any): number => {
     if (typeof value === 'number') return value;
     if (typeof value === 'string') {
-      const cleanedValue = value.replace(/\./g, '').replace(',', '.');
-      return parseFloat(cleanedValue);
+      // Remove R$, espaços e pontos de milhar, preservando o sinal de menos e a vírgula decimal
+      const cleanedValue = value
+        .replace(/[R$\s]/g, '')
+        .replace(/\./g, '')
+        .replace(',', '.');
+      const parsed = parseFloat(cleanedValue);
+      return isNaN(parsed) ? 0 : parsed;
     }
     return 0;
   };
