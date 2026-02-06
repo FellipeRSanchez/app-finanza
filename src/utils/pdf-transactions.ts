@@ -16,6 +16,12 @@ const monthAbbr: Record<string, number> = {
   jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
 };
 
+const BLACKLIST = [
+  "PAGAMENTO EFETUADO", "SALDO ANTERIOR", "TOTAL DA FATURA", "LIMITE", 
+  "ENCARGOS", "IOF", "JUROS", "VALOR EM REAIS", "CADA PONTO", "RESUMO",
+  "PAGAMENTO RECEBIDO", "EXTRATO"
+];
+
 const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
 
 function pad2(n: number) {
@@ -51,10 +57,10 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
 
     fullText += " " + items.map(i => i.str).join(" ");
 
-    // Agrupar por linha (Y) com tolerância
+    // Agrupar por linha (Y) com tolerância de 4px
     const rowMap = new Map<number, { y: number; parts: { x: number; str: string }[] }>();
     for (const it of items) {
-      const key = Math.round(it.y / 3) * 3;
+      const key = Math.round(it.y / 4) * 4;
       const existing = rowMap.get(key);
       if (!existing) rowMap.set(key, { y: it.y, parts: [{ x: it.x, str: it.str }] });
       else existing.parts.push({ x: it.x, str: it.str });
@@ -76,55 +82,53 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
   const extracted: PdfExtractedTransaction[] = [];
 
   for (const line of lines) {
-    // 1. Limpeza do hífen de coluna vazia (Inter)
-    let cleanLine = line.replace(/\s-\s/g, " ");
-    
-    // 2. Tentar extrair Data
-    let dateStr = "";
-    let dateMatch: any = null;
+    // 1. FILTRAGEM DE LIXO
+    const upperLine = line.toUpperCase();
+    if (BLACKLIST.some(word => upperLine.includes(word))) continue;
 
-    // Caso Inter: "19 DE AGO. 2025" ou "19 DE AGOSTO 2025"
-    const interDateRegex = /(\d{1,2})\s+DE\s+([A-ZÀ-ÿ]{3,})\.?\s+(\d{4})/i;
-    dateMatch = cleanLine.match(interDateRegex);
-    if (dateMatch) {
-      const dd = Number(dateMatch[1]);
-      const mStr = dateMatch[2].toLowerCase().substring(0, 3);
+    // 2. LIMPEZA DE SEPARADORES (o "-" do Inter)
+    let cleanLine = line.replace(/\s-\s/g, " ");
+    cleanLine = normalizeSpaces(cleanLine);
+
+    // 3. EXTRAÇÃO DE DATA
+    let dateStr = "";
+    
+    // Pattern Inter: "19 DE AGO. 2025"
+    const interDateMatch = cleanLine.match(/(\d{1,2})\s+DE\s+([A-ZÀ-ÿ]{3,})\.?\s+(\d{4})/i);
+    if (interDateMatch) {
+      const dd = Number(interDateMatch[1]);
+      const mStr = interDateMatch[2].toLowerCase().substring(0, 3);
       const mm = monthAbbr[mStr];
-      const yyyy = Number(dateMatch[3]);
-      if (mm) {
-        dateStr = `${pad2(dd)}/${pad2(mm)}/${yyyy}`;
-        cleanLine = cleanLine.replace(dateMatch[0], "");
-      }
+      const yyyy = Number(interDateMatch[3]);
+      if (mm) dateStr = `${pad2(dd)}/${pad2(mm)}/${yyyy}`;
     } else {
-      // Caso MP: "01/07"
-      const shortDateRegex = /(\d{2})\/(\d{2})/;
-      dateMatch = cleanLine.match(shortDateRegex);
-      if (dateMatch) {
-        dateStr = `${dateMatch[1]}/${dateMatch[2]}/${likelyYear}`;
-        cleanLine = cleanLine.replace(dateMatch[0], "");
+      // Pattern MP: "01/07"
+      const shortDateMatch = cleanLine.match(/(\d{2})\/(\d{2})/);
+      if (shortDateMatch) {
+        dateStr = `${shortDateMatch[1]}/${shortDateMatch[2]}/${likelyYear}`;
       }
     }
 
     if (!dateStr) continue;
 
-    // 3. Tentar extrair Valor (Procurando do final da linha para o início)
-    // O valor geralmente vem como "R$ 35,00" ou apenas "35,00"
-    const moneyRegex = /(?:R\$\s*)?(-?\d{1,3}(?:\.\d{3})*,\d{2})/i;
-    const moneyMatches = Array.from(cleanLine.matchAll(new RegExp(moneyRegex, 'gi')));
-    
-    if (moneyMatches.length > 0) {
-      // Pegamos o último match da linha (geralmente é o valor da transação)
-      const lastMatch = moneyMatches[moneyMatches.length - 1];
-      const value = parsePtBrNumber(lastMatch[1]);
-      let description = cleanLine.replace(lastMatch[0], "").trim();
+    // 4. EXTRAÇÃO DE VALOR
+    // Procura o formato XX,XX ou X.XXX,XX no final da linha
+    const moneyMatch = cleanLine.match(/(-?\d{1,3}(\.\d{3})*,\d{2})$/);
+    if (moneyMatch) {
+      const valueStr = moneyMatch[1];
+      const value = parsePtBrNumber(valueStr);
       
-      // Limpezas finais na descrição
-      description = normalizeSpaces(description)
-        .replace(/^-/, "")
-        .replace(/-$/, "")
+      // A descrição é o que sobrou entre a data e o valor
+      let description = cleanLine
+        .replace(interDateMatch ? interDateMatch[0] : /(\d{2})\/(\d{2})/, "")
+        .replace(valueStr, "")
+        .replace(/R\$/g, "")
         .trim();
 
-      if (description.length > 1 && !isNaN(value)) {
+      // Limpeza final da descrição (remove lixos como hífens repetidos)
+      description = normalizeSpaces(description.replace(/^[\s\-\.]+/, "").replace(/[\s\-\.]+$/, ""));
+
+      if (description.length > 2 && !isNaN(value)) {
         extracted.push({
           date: dateStr,
           description: description,
@@ -134,7 +138,7 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
     }
   }
 
-  // Dedup
+  // Dedup final
   const uniq = new Map<string, PdfExtractedTransaction>();
   for (const t of extracted) {
     const key = `${t.date}|${t.description.toLowerCase()}|${t.value.toFixed(2)}`;
