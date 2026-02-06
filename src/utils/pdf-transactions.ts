@@ -64,8 +64,6 @@ function detectLikelyYear(text: string): number {
 }
 
 function tokenizePreservingMoney(text: string) {
-  // Normaliza "R$ 1.234,56" para "R$" e "1.234,56" (tokens separados)
-  // e também casos como "R$1.234,56"
   const normalized = text
     .replace(/R\$\s*/g, "R$ ")
     .replace(/R\$\s+(-?\d)/g, "R$ $1")
@@ -75,6 +73,80 @@ function tokenizePreservingMoney(text: string) {
     .split(/\s+/)
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+const monthMap: Record<string, number> = {
+  jan: 1,
+  janeiro: 1,
+  fev: 2,
+  fevereiro: 2,
+  mar: 3,
+  março: 3,
+  marco: 3,
+  abr: 4,
+  abril: 4,
+  mai: 5,
+  maio: 5,
+  jun: 6,
+  junho: 6,
+  jul: 7,
+  julho: 7,
+  ago: 8,
+  agosto: 8,
+  set: 9,
+  setembro: 9,
+  out: 10,
+  outubro: 10,
+  nov: 11,
+  novembro: 11,
+  dez: 12,
+  dezembro: 12,
+};
+
+function parsePtBrLongDateTokenSequence(tokens: string[], startIndex: number): { date: string; nextIndex: number } | null {
+  // Aceita: "19 de ago. 2025" ou "19 de ago 2025"
+  // tokens: [ "19", "de", "ago.", "2025" ]
+  const ddRaw = tokens[startIndex];
+  const maybeDe = tokens[startIndex + 1];
+  const monthRaw = tokens[startIndex + 2];
+  const yyyyRaw = tokens[startIndex + 3];
+
+  if (!ddRaw || !maybeDe || !monthRaw || !yyyyRaw) return null;
+  if (!/^\d{1,2}$/.test(ddRaw)) return null;
+  if (maybeDe.toLowerCase() !== "de") return null;
+  if (!/^\d{4}$/.test(yyyyRaw)) return null;
+
+  const dd = Number(ddRaw);
+  const yyyy = Number(yyyyRaw);
+  const monthKey = monthRaw.toLowerCase().replace(".", "");
+  const mm = monthMap[monthKey];
+  if (!mm) return null;
+
+  return { date: toDdMmYyyy(dd, mm, yyyy), nextIndex: startIndex + 4 };
+}
+
+function isJunkDescription(desc: string) {
+  const d = desc.toLowerCase();
+  if (d.length < 3) return true;
+  const junk = [
+    "data",
+    "descrição",
+    "descricao",
+    "valor",
+    "saldo",
+    "lancamentos",
+    "lançamentos",
+    "movimentações",
+    "movimentacoes",
+    "extrato",
+    "total",
+    "crédito",
+    "credito",
+    "débito",
+    "debito",
+    "resumo",
+  ];
+  return junk.includes(d) || junk.some((j) => d === j);
 }
 
 export async function extractTransactionsFromPdf(file: File): Promise<PdfExtractedTransaction[]> {
@@ -128,7 +200,7 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
 
   const likelyYear = detectLikelyYear(fullText);
 
-  // 1) Tentativa por linha (melhor quando a tabela vem "inteira")
+  // 1) Tentativa por linha (quando a linha já vem certinha)
   const extractedLineBased: PdfExtractedTransaction[] = [];
 
   for (const line of lines) {
@@ -140,13 +212,13 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
       const date = matchFull[1];
       const description = normalizeSpaces(matchFull[2]);
       const value = parsePtBrNumber(matchFull[3]);
-      if (isLikelyDateDDMMYYYY(date) && description && Number.isFinite(value)) {
+      if (isLikelyDateDDMMYYYY(date) && description && !isJunkDescription(description) && Number.isFinite(value)) {
         extractedLineBased.push({ date, description, value: Math.abs(value) });
       }
       continue;
     }
 
-    // dd/MM ... valor  => completa ano
+    // dd/MM ... valor => completa ano provável
     const matchNoYear = line.match(
       /^(\d{2}\/\d{2})\s+(.*)\s+(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/,
     );
@@ -155,35 +227,63 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
       const date = toDdMmYyyy(dd, mm, likelyYear);
       const description = normalizeSpaces(matchNoYear[2]);
       const value = parsePtBrNumber(matchNoYear[3]);
-      if (description && Number.isFinite(value)) {
+      if (description && !isJunkDescription(description) && Number.isFinite(value)) {
         extractedLineBased.push({ date, description, value: Math.abs(value) });
+      }
+      continue;
+    }
+
+    // "19 de ago. 2025 ... 123,45"
+    const matchLong = line.match(
+      /^(\d{1,2})\s+de\s+([A-Za-zÀ-ÿ.]+)\s+(\d{4})\s+(.*)\s+(-?\d{1,3}(\.\d{3})*,\d{2}|\-?\d+,\d{2}|\-?\d+\.\d{2})$/,
+    );
+    if (matchLong) {
+      const dd = Number(matchLong[1]);
+      const monthKey = matchLong[2].toLowerCase().replace(".", "");
+      const yyyy = Number(matchLong[3]);
+      const mm = monthMap[monthKey];
+      const description = normalizeSpaces(matchLong[4]);
+      const value = parsePtBrNumber(matchLong[5]);
+      if (mm && description && !isJunkDescription(description) && Number.isFinite(value)) {
+        extractedLineBased.push({ date: toDdMmYyyy(dd, mm, yyyy), description, value: Math.abs(value) });
       }
     }
   }
 
-  // 2) Fallback por tokens sequenciais (melhor quando PDF quebra as colunas)
+  // 2) Parser sequencial por tokens (quando a tabela vem quebrada)
   const extractedTokenBased: PdfExtractedTransaction[] = [];
   if (extractedLineBased.length === 0) {
     const allTokens = tokenizePreservingMoney(normalizeSpaces(lines.join(" ")));
 
     let i = 0;
     while (i < allTokens.length) {
-      const t = allTokens[i];
+      let dateStr: string | null = null;
+      let nextIndex = i;
 
-      const isDateToken = isLikelyDateDDMMYYYY(t) || isLikelyDateDDMM(t);
-      if (!isDateToken) {
+      // dd/MM/yyyy
+      if (isLikelyDateDDMMYYYY(allTokens[i])) {
+        dateStr = allTokens[i];
+        nextIndex = i + 1;
+      } else if (isLikelyDateDDMM(allTokens[i])) {
+        // dd/MM
+        const [dd, mm] = allTokens[i].split("/").map(Number);
+        dateStr = toDdMmYyyy(dd, mm, likelyYear);
+        nextIndex = i + 1;
+      } else {
+        // dd de mmm. yyyy
+        const longDate = parsePtBrLongDateTokenSequence(allTokens, i);
+        if (longDate) {
+          dateStr = longDate.date;
+          nextIndex = longDate.nextIndex;
+        }
+      }
+
+      if (!dateStr) {
         i++;
         continue;
       }
 
-      let dateStr = t;
-      if (isLikelyDateDDMM(dateStr)) {
-        const [dd, mm] = dateStr.split("/").map(Number);
-        dateStr = toDdMmYyyy(dd, mm, likelyYear);
-      }
-
-      // avança para coletar descrição até achar valor (ignora "R$")
-      i++;
+      i = nextIndex;
 
       const descParts: string[] = [];
       let valueStr: string | null = null;
@@ -191,8 +291,10 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
       while (i < allTokens.length) {
         const tok = allTokens[i];
 
-        // se achar outra data antes do valor, aborta este registro
-        if (isLikelyDateDDMMYYYY(tok) || isLikelyDateDDMM(tok)) break;
+        // Se aparecer outra "data" antes do valor, aborta esta tentativa.
+        if (isLikelyDateDDMMYYYY(tok) || isLikelyDateDDMM(tok) || parsePtBrLongDateTokenSequence(allTokens, i)) {
+          break;
+        }
 
         if (tok === "R$") {
           i++;
@@ -212,7 +314,7 @@ export async function extractTransactionsFromPdf(file: File): Promise<PdfExtract
       const description = normalizeSpaces(descParts.join(" "));
       const value = valueStr ? parsePtBrNumber(valueStr) : NaN;
 
-      if (isLikelyDateDDMMYYYY(dateStr) && description && Number.isFinite(value)) {
+      if (dateStr && isLikelyDateDDMMYYYY(dateStr) && description && !isJunkDescription(description) && Number.isFinite(value)) {
         extractedTokenBased.push({ date: dateStr, description, value: Math.abs(value) });
       }
     }
